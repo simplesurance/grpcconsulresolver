@@ -16,6 +16,7 @@ import (
 type backoff struct {
 	intervals []time.Duration
 	jitterPct int
+	jitterSrc *rand.Rand
 }
 
 var defBackoff = backoff{
@@ -28,6 +29,7 @@ var defBackoff = backoff{
 	},
 
 	jitterPct: 20,
+	jitterSrc: rand.New(rand.NewSource(time.Now().UnixNano())),
 }
 
 func (b *backoff) Backoff(retry int) time.Duration {
@@ -39,7 +41,7 @@ func (b *backoff) Backoff(retry int) time.Duration {
 
 	d := b.intervals[idx]
 
-	return d + time.Duration(((int64(d) / 100) * int64((rand.Intn(b.jitterPct)))))
+	return d + time.Duration(((int64(d) / 100) * int64((b.jitterSrc.Intn(b.jitterPct)))))
 }
 
 type consulResolver struct {
