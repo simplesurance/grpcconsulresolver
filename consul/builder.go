@@ -20,8 +20,8 @@ package consul
 //            scheme:	     http
 //            tags:          nil
 // Example: consul://localhost:1234/user-service?scheme=https&tags=primary,eu
-// Will connect the consul server localhost:1234 via https and looksup the
-// adress of the service with the name "user-service" and the tag "primary" or
+// Will connect the consul server localhost:1234 via https and lookup the
+// address of the service with the name "user-service" and the tag "primary" or
 // "eu".
 
 import (
