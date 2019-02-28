@@ -65,7 +65,6 @@ func TestBackoff_IntervalIdxBounds(t *testing.T) {
 }
 
 type testClientConn struct {
-	target            string
 	mutex             sync.Mutex
 	addrs             []resolver.Address
 	newAddressCallCnt int
@@ -94,7 +93,6 @@ func (t *testClientConn) getAddrs() (addrs []resolver.Address) {
 }
 
 func (*testClientConn) NewServiceConfig(string) {
-	return
 }
 
 type consulMockHealthClient struct {
