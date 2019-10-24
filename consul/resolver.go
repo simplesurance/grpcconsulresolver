@@ -165,7 +165,7 @@ func (c *consulResolver) watcher() {
 		}
 
 		retryCount = 0
-		c.cc.NewAddress(addrs)
+		c.cc.UpdateState(resolver.State{Addresses: addrs})
 		c.timer.Reset(0)
 	}
 }
