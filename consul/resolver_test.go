@@ -70,6 +70,14 @@ type testClientConn struct {
 	newAddressCallCnt int
 }
 
+func (t *testClientConn) UpdateState(state resolver.State) {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+
+	t.addrs = state.Addresses
+	t.newAddressCallCnt++
+}
+
 func (t *testClientConn) NewAddress(addrs []resolver.Address) {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
