@@ -1,6 +1,6 @@
 # Consul Resolver for the grpc-go library
 The repository provides a consul resolver for the
-[GRPC-Go Library](https://github.com/grpc/grpc-go) >= 1.24.
+[GRPC-Go Library](https://github.com/grpc/grpc-go) >= 1.26.
 
 To register the resolver with the GRPC-Go library run:
 ```go

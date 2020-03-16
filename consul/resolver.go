@@ -170,7 +170,7 @@ func (c *consulResolver) watcher() {
 	}
 }
 
-func (c *consulResolver) ResolveNow(o resolver.ResolveNowOption) {
+func (c *consulResolver) ResolveNow(o resolver.ResolveNowOptions) {
 	select {
 	case c.resolveNow <- struct{}{}:
 

@@ -128,7 +128,7 @@ func parseEndpoint(endpoint string) (serviceName, scheme string, tags []string, 
 	return
 }
 
-func (*resolverBuilder) Build(target resolver.Target, cc resolver.ClientConn, _ resolver.BuildOption) (resolver.Resolver, error) {
+func (*resolverBuilder) Build(target resolver.Target, cc resolver.ClientConn, _ resolver.BuildOptions) (resolver.Resolver, error) {
 	serviceName, scheme, tags, err := parseEndpoint(target.Endpoint)
 	if err != nil {
 		return nil, err

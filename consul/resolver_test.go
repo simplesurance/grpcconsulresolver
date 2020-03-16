@@ -1,6 +1,7 @@
 package consul
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"testing"
@@ -8,6 +9,7 @@ import (
 
 	consul "github.com/hashicorp/consul/api"
 	"google.golang.org/grpc/resolver"
+	"google.golang.org/grpc/serviceconfig"
 )
 
 func maxBackoffJitter(idx int) time.Duration {
@@ -68,6 +70,14 @@ type testClientConn struct {
 	mutex             sync.Mutex
 	addrs             []resolver.Address
 	newAddressCallCnt int
+}
+
+func (t *testClientConn) ParseServiceConfig(_ string) *serviceconfig.ParseResult {
+	return &serviceconfig.ParseResult{Err: errors.New("config parsing not implemented in test mock")}
+}
+
+func (t *testClientConn) ReportError(_ error) {
+	return
 }
 
 func (t *testClientConn) UpdateState(state resolver.State) {
@@ -207,12 +217,12 @@ func TestResolve(t *testing.T) {
 
 		health.setResolveAddrs(tt.result)
 
-		r, err := b.Build(tt.target, &cc, resolver.BuildOption{})
+		r, err := b.Build(tt.target, &cc, resolver.BuildOptions{})
 		if err != nil {
 			t.Fatal("Build() failed:", err.Error())
 		}
 
-		r.ResolveNow(resolver.ResolveNowOption{})
+		r.ResolveNow(resolver.ResolveNowOptions{})
 
 		var addrs []resolver.Address
 		for newAddressCallCnt == cc.getNewAddressCallCnt() {
@@ -251,19 +261,19 @@ func TestResolveNewAddressOnlyCalledOnChange(t *testing.T) {
 
 	health.setResolveAddrs(addr)
 
-	r, err := b.Build(target, &cc, resolver.BuildOption{})
+	r, err := b.Build(target, &cc, resolver.BuildOptions{})
 	if err != nil {
 		t.Fatal("Build() failed:", err.Error())
 	}
 
-	r.ResolveNow(resolver.ResolveNowOption{})
+	r.ResolveNow(resolver.ResolveNowOptions{})
 
 	for newAddressCallCnt == cc.getNewAddressCallCnt() {
 		time.Sleep(time.Millisecond)
 	}
 	newAddressCallCnt = cc.getNewAddressCallCnt()
 
-	r.ResolveNow(resolver.ResolveNowOption{})
+	r.ResolveNow(resolver.ResolveNowOptions{})
 	time.Sleep(time.Second)
 
 	if newAddressCallCnt != cc.getNewAddressCallCnt() {
@@ -308,12 +318,12 @@ func TestResolveAddrChange(t *testing.T) {
 
 	health.setResolveAddrs(addrs1)
 
-	r, err := b.Build(target, &cc, resolver.BuildOption{})
+	r, err := b.Build(target, &cc, resolver.BuildOptions{})
 	if err != nil {
 		t.Fatal("Build() failed:", err.Error())
 	}
 
-	r.ResolveNow(resolver.ResolveNowOption{})
+	r.ResolveNow(resolver.ResolveNowOptions{})
 
 	for newAddressCallCnt == cc.getNewAddressCallCnt() {
 		time.Sleep(time.Millisecond)
@@ -326,7 +336,7 @@ func TestResolveAddrChange(t *testing.T) {
 
 	newAddressCallCnt = cc.getNewAddressCallCnt()
 	health.setResolveAddrs(addrs2)
-	r.ResolveNow(resolver.ResolveNowOption{})
+	r.ResolveNow(resolver.ResolveNowOptions{})
 	for newAddressCallCnt == cc.getNewAddressCallCnt() {
 		time.Sleep(time.Millisecond)
 	}
