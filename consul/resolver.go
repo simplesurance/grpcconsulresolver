@@ -121,7 +121,8 @@ func (c *consulResolver) watcher() {
 			// data newer then the passed opts.WaitIndex is available.
 			// We check if the returned addrs changed to not call
 			// cc.UpdateState() unnecessary for unchanged addresses.
-			if len(addrs) == 0 || reflect.DeepEqual(addrs, lastAddrs) {
+			if (len(addrs) == 0 && len(lastAddrs) == 0) ||
+				reflect.DeepEqual(addrs, lastAddrs) {
 				// sleep a bit to prevent that query() is
 				// called in a tight-loop if the consul server
 				// returns multiple time immediately, despite

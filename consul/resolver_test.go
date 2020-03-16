@@ -313,6 +313,61 @@ func TestResolveAddrChange(t *testing.T) {
 	r.Close()
 }
 
+func TestResolveAddrChangesToUnresolvable(t *testing.T) {
+	health := &consulMockHealthClient{}
+	cleanup := replaceCreateHealthClientFn(
+		func(cfg *consul.Config) (consulHealthEndpoint, error) {
+			return health, nil
+		},
+	)
+	defer cleanup()
+
+	addrs1 := []*consul.AgentService{
+		&consul.AgentService{
+			Address: "localhost",
+			Port:    5678,
+		},
+	}
+	addrs2 := []*consul.AgentService{}
+
+	cc := testClientConn{}
+	newAddressCallCnt := cc.getNewAddressCallCnt()
+	target := resolver.Target{Endpoint: "user-service"}
+	b := NewBuilder()
+
+	health.setResolveAddrs(addrs1)
+
+	r, err := b.Build(target, &cc, resolver.BuildOptions{})
+	if err != nil {
+		t.Fatal("Build() failed:", err.Error())
+	}
+
+	r.ResolveNow(resolver.ResolveNowOptions{})
+
+	for newAddressCallCnt == cc.getNewAddressCallCnt() {
+		time.Sleep(time.Millisecond)
+	}
+
+	resolvedAddrs := cc.getAddrs()
+	if !cmpResolveResults(resolvedAddrs, addrs1) {
+		t.Errorf("resolved address '%+v', expected: '%+v'", resolvedAddrs, addrs1)
+	}
+
+	newAddressCallCnt = cc.getNewAddressCallCnt()
+	health.setResolveAddrs(addrs2)
+	r.ResolveNow(resolver.ResolveNowOptions{})
+	for newAddressCallCnt == cc.getNewAddressCallCnt() {
+		time.Sleep(time.Millisecond)
+	}
+
+	resolvedAddrs = cc.getAddrs()
+	if !cmpResolveResults(resolvedAddrs, addrs2) {
+		t.Errorf("resolved address after change '%+v', expected: '%+v'", resolvedAddrs, addrs1)
+	}
+
+	r.Close()
+}
+
 func TestErrorIsReportedOnQueryErrors(t *testing.T) {
 	queryErr := errors.New("query failed")
 	health := &consulMockHealthClient{err: queryErr}
