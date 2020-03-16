@@ -12,72 +12,22 @@ import (
 	"google.golang.org/grpc/serviceconfig"
 )
 
-func maxBackoffJitter(idx int) time.Duration {
-	return time.Duration(int64(defBackoff.intervals[idx]) / 100 * int64(defBackoff.jitterPct))
-}
-
-func TestBackoff(t *testing.T) {
-	for i := range defBackoff.intervals {
-		d := defBackoff.Backoff(i)
-		if d < defBackoff.intervals[i] {
-			t.Errorf("duration for retry %d is %d expected >= %d", i, d, defBackoff.intervals[i])
-		}
-
-		maxJitter := maxBackoffJitter(i)
-		if d >= d+maxJitter {
-			t.Errorf("duration for retry %d is %d expected <= %d", i, d, d+maxJitter)
-		}
-	}
-
-}
-
-func TestBackoff_IntervalIdxBounds(t *testing.T) {
-	tests := []struct {
-		name  string
-		retry int
-		idx   int
-	}{
-		{
-			name:  "retry: -1",
-			retry: -1,
-			idx:   0,
-		},
-		{
-			name:  "retry > interval len",
-			retry: len(defBackoff.intervals),
-			idx:   len(defBackoff.intervals) - 1,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			retry := tt.retry
-
-			d := defBackoff.Backoff(retry)
-			if d < defBackoff.intervals[tt.idx] {
-				t.Errorf("duration for retry %d is %d expected >= %d", retry, d, defBackoff.intervals[tt.idx])
-			}
-
-			maxJitter := maxBackoffJitter(tt.idx)
-			if d >= d+maxJitter {
-				t.Errorf("duration for retry %d is %d expected <= %d", retry, d, d+maxJitter)
-			}
-
-		})
-	}
-}
-
 type testClientConn struct {
 	mutex             sync.Mutex
 	addrs             []resolver.Address
 	newAddressCallCnt int
+	lastReportedError error
 }
 
 func (t *testClientConn) ParseServiceConfig(_ string) *serviceconfig.ParseResult {
 	return &serviceconfig.ParseResult{Err: errors.New("config parsing not implemented in test mock")}
 }
 
-func (t *testClientConn) ReportError(_ error) {
-	return
+func (t *testClientConn) ReportError(err error) {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+
+	t.lastReportedError = err
 }
 
 func (t *testClientConn) UpdateState(state resolver.State) {
@@ -137,6 +87,10 @@ func (c *consulMockHealthClient) setResolveAddrs(s []*consul.AgentService) {
 func (c *consulMockHealthClient) ServiceMultipleTags(service string, tags []string, passingOnly bool, q *consul.QueryOptions) ([]*consul.ServiceEntry, *consul.QueryMeta, error) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
+
+	if q.Context().Err() != nil {
+		return nil, nil, q.Context().Err()
+	}
 
 	return c.entries, &c.queryMeta, c.err
 }
@@ -199,6 +153,16 @@ func TestResolve(t *testing.T) {
 		target resolver.Target
 		result []*consul.AgentService
 	}{
+		{
+			resolver.Target{Endpoint: "user-service"},
+			[]*consul.AgentService{
+				&consul.AgentService{
+					Address: "localhost",
+					Port:    5678,
+				},
+			},
+		},
+
 		{
 			resolver.Target{Endpoint: "user-service"},
 			[]*consul.AgentService{
@@ -347,4 +311,42 @@ func TestResolveAddrChange(t *testing.T) {
 	}
 
 	r.Close()
+}
+
+func TestErrorIsReportedOnQueryErrors(t *testing.T) {
+	queryErr := errors.New("query failed")
+	health := &consulMockHealthClient{err: queryErr}
+	cleanup := replaceCreateHealthClientFn(
+		func(cfg *consul.Config) (consulHealthEndpoint, error) {
+			return health, nil
+		},
+	)
+	defer cleanup()
+
+	cc := testClientConn{}
+	b := NewBuilder()
+	target := resolver.Target{Endpoint: "user-service"}
+
+	r, err := b.Build(target, &cc, resolver.BuildOptions{})
+	if err != nil {
+		t.Fatal("Build() failed:", err.Error())
+	}
+
+	r.ResolveNow(resolver.ResolveNowOptions{})
+
+	gethealthErr := func() error {
+		cc.mutex.Lock()
+		defer cc.mutex.Unlock()
+
+		return cc.lastReportedError
+	}
+
+	for ; err == nil; err = gethealthErr() {
+		time.Sleep(time.Millisecond)
+
+	}
+
+	if err != queryErr {
+		t.Fatalf("resolver error is %+v, expected %+v", err, queryErr)
+	}
 }
