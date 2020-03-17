@@ -8,9 +8,18 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hashicorp/consul/api"
 	consul "github.com/hashicorp/consul/api"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/resolver"
+)
+
+type healthFilter int
+
+const (
+	healthFilterUndefined healthFilter = iota
+	healthFilterOnlyHealthy
+	healthFilterFallbackToUnhealthy
 )
 
 type consulResolver struct {
@@ -18,6 +27,7 @@ type consulResolver struct {
 	consulHealth consulHealthEndpoint
 	service      string
 	tags         []string
+	healthFilter healthFilter
 	ctx          context.Context
 	cancel       context.CancelFunc
 	resolveNow   chan struct{}
@@ -37,7 +47,12 @@ var consulCreateHealthClientFn = func(cfg *consul.Config) (consulHealthEndpoint,
 	return clt.Health(), nil
 }
 
-func newConsulResolver(cc resolver.ClientConn, scheme, consulAddr, consulService string, tags []string) (*consulResolver, error) {
+func newConsulResolver(
+	cc resolver.ClientConn,
+	scheme, consulAddr, consulService string,
+	tags []string,
+	healthFilter healthFilter,
+) (*consulResolver, error) {
 	cfg := consul.Config{
 		Address: consulAddr,
 		Scheme:  scheme,
@@ -55,6 +70,7 @@ func newConsulResolver(cc resolver.ClientConn, scheme, consulAddr, consulService
 		consulHealth: health,
 		service:      consulService,
 		tags:         tags,
+		healthFilter: healthFilter,
 		ctx:          ctx,
 		cancel:       cancel,
 		resolveNow:   make(chan struct{}, 1),
@@ -67,12 +83,16 @@ func (c *consulResolver) start() {
 }
 
 func (c *consulResolver) query(opts *consul.QueryOptions) ([]resolver.Address, uint64, error) {
-	entries, meta, err := c.consulHealth.ServiceMultipleTags(c.service, c.tags, true, opts)
+	entries, meta, err := c.consulHealth.ServiceMultipleTags(c.service, c.tags, c.healthFilter == healthFilterOnlyHealthy, opts)
 	if err != nil {
 		grpclog.Infof("grpc: resolving service name '%s' via consul failed: %v\n",
 			c.service, err)
 
 		return nil, 0, err
+	}
+
+	if c.healthFilter == healthFilterFallbackToUnhealthy {
+		entries = filterPreferOnlyHealthy(entries)
 	}
 
 	result := make([]resolver.Address, 0, len(entries))
@@ -88,6 +108,25 @@ func (c *consulResolver) query(opts *consul.QueryOptions) ([]resolver.Address, u
 	}
 
 	return result, meta.LastIndex, nil
+}
+
+// filterPreferOnlyHealthy if entries contains services with passing health
+// check only entries with passing health are returned.
+// Otherwise entries is returned unchanged.
+func filterPreferOnlyHealthy(entries []*consul.ServiceEntry) []*consul.ServiceEntry {
+	healthy := make([]*consul.ServiceEntry, 0, len(entries))
+
+	for _, e := range entries {
+		if e.Checks.AggregatedStatus() == api.HealthPassing {
+			healthy = append(healthy, e)
+		}
+	}
+
+	if len(healthy) != 0 {
+		return healthy
+	}
+
+	return entries
 }
 
 func (c *consulResolver) watcher() {

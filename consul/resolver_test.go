@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hashicorp/consul/api"
 	consul "github.com/hashicorp/consul/api"
 	"google.golang.org/grpc/resolver"
 	"google.golang.org/grpc/serviceconfig"
@@ -71,17 +72,22 @@ type consulMockHealthClient struct {
 }
 
 func (c *consulMockHealthClient) setResolveAddrs(s []*consul.AgentService) {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-
-	c.entries = []*consul.ServiceEntry{}
-
+	serviceEntries := []*consul.ServiceEntry{}
 	for _, e := range s {
-		c.entries = append(c.entries,
+		serviceEntries = append(serviceEntries,
 			&consul.ServiceEntry{
 				Service: e,
 			})
 	}
+
+	c.setResolveAddrsEntries(serviceEntries)
+}
+
+func (c *consulMockHealthClient) setResolveAddrsEntries(entries []*consul.ServiceEntry) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	c.entries = entries
 }
 
 func (c *consulMockHealthClient) ServiceMultipleTags(service string, tags []string, passingOnly bool, q *consul.QueryOptions) ([]*consul.ServiceEntry, *consul.QueryMeta, error) {
@@ -140,7 +146,164 @@ func cmpResolveResults(addrs []resolver.Address, ags []*consul.AgentService) boo
 	return true
 }
 
+func resolverAddressExist(addrs []resolver.Address, wanted resolver.Address) bool {
+	for _, addr := range addrs {
+		if addr == wanted {
+			return true
+		}
+	}
+
+	return false
+}
+
+func cmpAddrs(addrsA, addrsB []resolver.Address) bool {
+	for _, a := range addrsA {
+		if !resolverAddressExist(addrsB, a) {
+			return false
+		}
+	}
+
+	for _, b := range addrsB {
+		if !resolverAddressExist(addrsA, b) {
+			return false
+		}
+	}
+
+	return true
+}
+
 func TestResolve(t *testing.T) {
+	tests := []struct {
+		name           string
+		target         resolver.Target
+		consulResponse []*consul.ServiceEntry
+		resolverResult []resolver.Address
+	}{
+		{
+			name:   "defaultResolve",
+			target: resolver.Target{Endpoint: "user-service"},
+			consulResponse: []*consul.ServiceEntry{
+				{
+					Service: &api.AgentService{
+						Address: "localhost",
+						Port:    5678,
+					},
+				},
+				{
+					Service: &api.AgentService{
+						Address: "remotehost",
+						Port:    1234,
+					},
+				},
+			},
+			resolverResult: []resolver.Address{
+				{
+					Addr: "localhost:5678",
+				},
+				{
+					Addr: "remotehost:1234",
+				},
+			},
+		},
+
+		{
+			name:   "fallbackToUnhealthy_ResolveToOnlyHealthy",
+			target: resolver.Target{Endpoint: "credit-service?health=fallbackToUnhealthy"},
+			consulResponse: []*consul.ServiceEntry{
+				{
+					Service: &api.AgentService{
+						Address: "localhost",
+						Port:    5678,
+					},
+					Checks: api.HealthChecks{
+						{
+							Status: api.HealthPassing,
+						},
+					},
+				},
+				{
+					Service: &api.AgentService{
+						Address: "remotehost",
+						Port:    9,
+					},
+					Checks: api.HealthChecks{
+						{
+							Status: api.HealthPassing,
+						},
+					},
+				},
+				{
+					Service: &api.AgentService{
+						Address: "unhealthyHost",
+						Port:    1234,
+					},
+					Checks: api.HealthChecks{
+						{
+							Status: api.HealthCritical,
+						},
+					},
+				},
+				{
+					Service: &api.AgentService{
+						Address: "warnedHost",
+						Port:    1,
+					},
+					Checks: api.HealthChecks{
+						{
+							Status: api.HealthWarning,
+						},
+					},
+				},
+			},
+			resolverResult: []resolver.Address{
+				{
+					Addr: "localhost:5678",
+				},
+
+				{
+					Addr: "remotehost:9",
+				},
+			},
+		},
+
+		{
+			name:   "fallbackToUnhealthy_AllUnhealthy",
+			target: resolver.Target{Endpoint: "web-service?health=fallbackToUnhealthy"},
+			consulResponse: []*consul.ServiceEntry{
+				{
+					Service: &api.AgentService{
+						Address: "localhost",
+						Port:    5678,
+					},
+					Checks: api.HealthChecks{
+						{
+							Status: api.HealthCritical,
+						},
+					},
+				},
+				{
+					Service: &api.AgentService{
+						Address: "remotehost",
+						Port:    1234,
+					},
+					Checks: api.HealthChecks{
+						{
+							Status: api.HealthCritical,
+						},
+					},
+				},
+			},
+			resolverResult: []resolver.Address{
+				{
+					Addr: "localhost:5678",
+				},
+				{
+					Addr: "remotehost:1234",
+				},
+			},
+		},
+	}
+
 	health := &consulMockHealthClient{}
 	cleanup := replaceCreateHealthClientFn(
 		func(cfg *consul.Config) (consulHealthEndpoint, error) {
@@ -149,56 +312,33 @@ func TestResolve(t *testing.T) {
 	)
 	defer cleanup()
 
-	tests := []struct {
-		target resolver.Target
-		result []*consul.AgentService
-	}{
-		{
-			resolver.Target{Endpoint: "user-service"},
-			[]*consul.AgentService{
-				&consul.AgentService{
-					Address: "localhost",
-					Port:    5678,
-				},
-			},
-		},
-
-		{
-			resolver.Target{Endpoint: "user-service"},
-			[]*consul.AgentService{
-				&consul.AgentService{
-					Address: "localhost",
-					Port:    5678,
-				},
-			},
-		},
-	}
-
 	for _, tt := range tests {
-		cc := testClientConn{}
-		newAddressCallCnt := cc.getNewAddressCallCnt()
-		b := NewBuilder()
+		t.Run(tt.target.Endpoint, func(t *testing.T) {
+			cc := testClientConn{}
+			newAddressCallCnt := cc.getNewAddressCallCnt()
+			b := NewBuilder()
 
-		health.setResolveAddrs(tt.result)
+			health.setResolveAddrsEntries(tt.consulResponse)
 
-		r, err := b.Build(tt.target, &cc, resolver.BuildOptions{})
-		if err != nil {
-			t.Fatal("Build() failed:", err.Error())
-		}
+			r, err := b.Build(tt.target, &cc, resolver.BuildOptions{})
+			if err != nil {
+				t.Fatal("Build() failed:", err.Error())
+			}
 
-		r.ResolveNow(resolver.ResolveNowOptions{})
+			r.ResolveNow(resolver.ResolveNowOptions{})
 
-		var addrs []resolver.Address
-		for newAddressCallCnt == cc.getNewAddressCallCnt() {
-			time.Sleep(time.Millisecond)
-		}
+			var addrs []resolver.Address
+			for newAddressCallCnt == cc.getNewAddressCallCnt() {
+				time.Sleep(time.Millisecond)
+			}
 
-		addrs = cc.getAddrs()
-		if !cmpResolveResults(addrs, tt.result) {
-			t.Errorf("resolved address '%+v', expected: '%+v'", addrs, tt.result)
-		}
+			addrs = cc.getAddrs()
+			if !cmpAddrs(addrs, tt.resolverResult) {
+				t.Errorf("resolved address '%+v', expected: '%+v'", addrs, tt.resolverResult)
+			}
 
-		r.Close()
+			r.Close()
+		})
 	}
 }
 

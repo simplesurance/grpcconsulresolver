@@ -9,16 +9,21 @@ package consul
 // To register the resolver with the GRPC-Go library run:
 //	resolver.Register(consul.NewBuilder())
 // Afterwards it can be used by calling grpc.Dial() and passing an URI in the
-// following format: consul://[<consul-server>]/<serviceName>[?<OPT>[&<OPT>]
+// following format: consul://[<consul-server>]/<serviceName>[?<OPT>[&<OPT>]]
 // where OPT:
-//            scheme=(http|https)   - to define if the connection to consul is
-//				      established via http or https
-//            tags=<tag>[,<tag>]... - specifies that the consul service entry must have
-//                                    one of those tags
+//  scheme=(http|https)			  - establish connection to consul via
+//  http or https
+//  tags=<tag>[,<tag>]...		  - filters the consul service by tags
+//  health=(healthy|fallbackToUnhealthy)  - filter services by their
+//					    health checks status.
+//					    fallbackToUnhealthy resolves to
+//					    unhealthy ones if no healthy ones
+//					    are available.
 // Defaults:
-//            consul-server: http://127.0.0.1:8500
-//            scheme:	     http
-//            tags:          nil
+//            consul-server:		127.0.0.1:8500
+//            scheme:			http
+//            tags:			nil
+//	      health:			healthy
 // Example: consul://localhost:1234/user-service?scheme=https&tags=primary,eu
 // Will connect the consul server localhost:1234 via https and lookup the
 // address of the service with the name "user-service" and the tag "primary" or
@@ -55,12 +60,14 @@ func endpointParts(endpoint string) (serviceName, opts string, err error) {
 }
 
 func splitOpts(opts string) ([]string, error) {
+	const maxParams = 3
+
 	spl := strings.Split(opts, "&")
-	if len(spl) <= 2 {
+	if len(spl) <= maxParams {
 		return spl, nil
 	}
 
-	return nil, errors.New("endpoint can only contain <=2 parameters")
+	return nil, fmt.Errorf("endpoint can only contain <=%d parameters", maxParams)
 }
 
 func splitOptKV(opt string) (key, value string, err error) {
@@ -72,69 +79,86 @@ func splitOptKV(opt string) (key, value string, err error) {
 	return "", "", errors.New("parameter must contain a single '='")
 }
 
-func extractOpts(opts string) (scheme string, tags []string, err error) {
+func extractOpts(opts string) (scheme string, tags []string, health healthFilter, err error) {
 	optsSl, err := splitOpts(opts)
 	if err != nil {
-		return "", nil, err
+		return "", nil, health, err
 	}
 
 	for _, opt := range optsSl {
 		key, value, err := splitOptKV(opt)
 		if err != nil {
-			return "", nil, err
+			return "", nil, healthFilterUndefined, err
 		}
 
 		switch key = strings.ToLower(key); key {
 		case "scheme":
 			scheme = strings.ToLower(value)
 			if scheme != "http" && scheme != "https" {
-				return "", nil, fmt.Errorf("unsupported scheme '%s'", scheme)
+				return "", nil, healthFilterUndefined, fmt.Errorf("unsupported scheme '%s'", scheme)
 			}
 
 		case "tags":
 			tags = strings.Split(value, ",")
 
+		case "health":
+			switch strings.ToLower(value) {
+			case "healthy":
+				health = healthFilterOnlyHealthy
+			case "fallbacktounhealthy":
+				health = healthFilterFallbackToUnhealthy
+			default:
+				return "", nil, healthFilterUndefined, fmt.Errorf("unsupported health parameter value: '%s'", value)
+			}
+
 		default:
-			return "", nil, fmt.Errorf("unsupported parameter: '%s'", key)
+			return "", nil, healthFilterUndefined, fmt.Errorf("unsupported parameter: '%s'", key)
 		}
 	}
 
-	return
+	return scheme, tags, health, err
 }
 
-func parseEndpoint(endpoint string) (serviceName, scheme string, tags []string, err error) {
+func parseEndpoint(endpoint string) (serviceName, scheme string, tags []string, health healthFilter, err error) {
 	const defScheme = "http"
+	const defHealthFilter = healthFilterOnlyHealthy
 
 	serviceName, opts, err := endpointParts(endpoint)
 	if err != nil {
-		return "", "", nil, err
-	}
-	if serviceName == "" {
-		return "", "", nil, errors.New("endpoint is empty")
-	}
-	if opts == "" {
-		return serviceName, defScheme, nil, nil
+		return "", "", nil, health, err
 	}
 
-	scheme, tags, err = extractOpts(opts)
+	if serviceName == "" {
+		return "", "", nil, health, errors.New("endpoint is empty")
+	}
+
+	if opts == "" {
+		return serviceName, defScheme, nil, defHealthFilter, nil
+	}
+
+	scheme, tags, health, err = extractOpts(opts)
 	if err != nil {
-		return "", "", nil, err
+		return "", "", nil, health, err
 	}
 
 	if scheme == "" {
-		return serviceName, defScheme, tags, nil
+		scheme = defScheme
 	}
 
-	return
+	if health == healthFilterUndefined {
+		health = defHealthFilter
+	}
+
+	return serviceName, scheme, tags, health, nil
 }
 
 func (*resolverBuilder) Build(target resolver.Target, cc resolver.ClientConn, _ resolver.BuildOptions) (resolver.Resolver, error) {
-	serviceName, scheme, tags, err := parseEndpoint(target.Endpoint)
+	serviceName, scheme, tags, health, err := parseEndpoint(target.Endpoint)
 	if err != nil {
 		return nil, err
 	}
 
-	r, err := newConsulResolver(cc, scheme, target.Authority, serviceName, tags)
+	r, err := newConsulResolver(cc, scheme, target.Authority, serviceName, tags, health)
 	if err != nil {
 		return nil, err
 	}
