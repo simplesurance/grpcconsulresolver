@@ -118,6 +118,26 @@ func TestResolve(t *testing.T) {
 		},
 
 		{
+			name:   "UseAgentAddrIfServiceAddrEmpty",
+			target: resolver.Target{Endpoint: "user-service"},
+			consulResponse: []*consul.ServiceEntry{
+				{
+					Service: &consul.AgentService{
+						Port: 5678,
+					},
+					Node: &consul.Node{
+						Address: "localhost",
+					},
+				},
+			},
+			resolverResult: []resolver.Address{
+				{
+					Addr: "localhost:5678",
+				},
+			},
+		},
+
+		{
 			name:   "fallbackToUnhealthy_ResolveToOnlyHealthy",
 			target: resolver.Target{Endpoint: "credit-service?health=fallbackToUnhealthy"},
 			consulResponse: []*consul.ServiceEntry{
@@ -170,7 +190,6 @@ func TestResolve(t *testing.T) {
 				{
 					Addr: "localhost:5678",
 				},
-
 				{
 					Addr: "remotehost:9",
 				},
@@ -262,10 +281,12 @@ func TestResolveNewAddressOnlyCalledOnChange(t *testing.T) {
 	)
 	defer cleanup()
 
-	addr := []*consul.AgentService{
-		&consul.AgentService{
-			Address: "localhost",
-			Port:    5678,
+	service := []*consul.ServiceEntry{
+		&consul.ServiceEntry{
+			Service: &consul.AgentService{
+				Address: "localhost",
+				Port:    5678,
+			},
 		},
 	}
 
@@ -274,7 +295,7 @@ func TestResolveNewAddressOnlyCalledOnChange(t *testing.T) {
 	target := resolver.Target{Endpoint: "user-service"}
 	b := NewBuilder()
 
-	health.SetRespServiceEntries(addr)
+	health.SetRespEntries(service)
 
 	r, err := b.Build(target, cc, resolver.BuildOptions{})
 	if err != nil {
@@ -307,10 +328,34 @@ func TestResolveAddrChange(t *testing.T) {
 	)
 	defer cleanup()
 
+	services1 := []*consul.ServiceEntry{
+		&consul.ServiceEntry{
+			Service: &consul.AgentService{
+				Address: "localhost",
+				Port:    5678,
+			},
+		},
+	}
+
 	addrs1 := []*consul.AgentService{
 		&consul.AgentService{
 			Address: "localhost",
 			Port:    5678,
+		},
+	}
+
+	services2 := []*consul.ServiceEntry{
+		&consul.ServiceEntry{
+			Service: &consul.AgentService{
+				Address: "localhost",
+				Port:    5678,
+			},
+		},
+		&consul.ServiceEntry{
+			Service: &consul.AgentService{
+				Address: "remotehost",
+				Port:    12345,
+			},
 		},
 	}
 
@@ -330,8 +375,7 @@ func TestResolveAddrChange(t *testing.T) {
 	newAddressCallCnt := cc.UpdateStateCallCnt()
 	target := resolver.Target{Endpoint: "user-service"}
 	b := NewBuilder()
-
-	health.SetRespServiceEntries(addrs1)
+	health.SetRespEntries(services1)
 
 	r, err := b.Build(target, cc, resolver.BuildOptions{})
 	if err != nil {
@@ -350,7 +394,7 @@ func TestResolveAddrChange(t *testing.T) {
 	}
 
 	newAddressCallCnt = cc.UpdateStateCallCnt()
-	health.SetRespServiceEntries(addrs2)
+	health.SetRespEntries(services2)
 	r.ResolveNow(resolver.ResolveNowOptions{})
 	for newAddressCallCnt == cc.UpdateStateCallCnt() {
 		time.Sleep(time.Millisecond)
@@ -373,12 +417,24 @@ func TestResolveAddrChangesToUnresolvable(t *testing.T) {
 	)
 	defer cleanup()
 
+	services1 := []*consul.ServiceEntry{
+		&consul.ServiceEntry{
+			Service: &consul.AgentService{
+				Address: "localhost",
+				Port:    5678,
+			},
+		},
+	}
+
 	addrs1 := []*consul.AgentService{
 		&consul.AgentService{
 			Address: "localhost",
 			Port:    5678,
 		},
 	}
+
+	services2 := []*consul.ServiceEntry{}
+
 	addrs2 := []*consul.AgentService{}
 
 	cc := mocks.NewClientConn()
@@ -386,7 +442,7 @@ func TestResolveAddrChangesToUnresolvable(t *testing.T) {
 	target := resolver.Target{Endpoint: "user-service"}
 	b := NewBuilder()
 
-	health.SetRespServiceEntries(addrs1)
+	health.SetRespEntries(services1)
 
 	r, err := b.Build(target, cc, resolver.BuildOptions{})
 	if err != nil {
@@ -405,7 +461,7 @@ func TestResolveAddrChangesToUnresolvable(t *testing.T) {
 	}
 
 	newAddressCallCnt = cc.UpdateStateCallCnt()
-	health.SetRespServiceEntries(addrs2)
+	health.SetRespEntries(services2)
 	r.ResolveNow(resolver.ResolveNowOptions{})
 	for newAddressCallCnt == cc.UpdateStateCallCnt() {
 		time.Sleep(time.Millisecond)
