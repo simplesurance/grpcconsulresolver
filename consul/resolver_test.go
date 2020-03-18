@@ -70,18 +70,11 @@ type consulMockHealthClient struct {
 	err       error
 }
 
-func (c *consulMockHealthClient) setResolveAddrs(s []*consul.AgentService) {
+func (c *consulMockHealthClient) setResolveAddrs(s []*consul.ServiceEntry) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
-	c.entries = []*consul.ServiceEntry{}
-
-	for _, e := range s {
-		c.entries = append(c.entries,
-			&consul.ServiceEntry{
-				Service: e,
-			})
-	}
+	c.entries = s
 }
 
 func (c *consulMockHealthClient) ServiceMultipleTags(service string, tags []string, passingOnly bool, q *consul.QueryOptions) ([]*consul.ServiceEntry, *consul.QueryMeta, error) {
@@ -151,10 +144,19 @@ func TestResolve(t *testing.T) {
 
 	tests := []struct {
 		target resolver.Target
+		services []*consul.ServiceEntry
 		result []*consul.AgentService
 	}{
 		{
 			resolver.Target{Endpoint: "user-service"},
+			[]*consul.ServiceEntry{
+			        &consul.ServiceEntry{
+                                        Service: &consul.AgentService{
+                                                Address: "localhost",
+                                                Port:    5678,
+                                        },
+                                },
+                        },
 			[]*consul.AgentService{
 				&consul.AgentService{
 					Address: "localhost",
@@ -162,9 +164,16 @@ func TestResolve(t *testing.T) {
 				},
 			},
 		},
-
 		{
 			resolver.Target{Endpoint: "user-service"},
+			[]*consul.ServiceEntry{
+			        &consul.ServiceEntry{
+			                Service: &consul.AgentService{
+			                        Address: "localhost",
+			                        Port:    5678,
+                                        },
+                                },
+                        },
 			[]*consul.AgentService{
 				&consul.AgentService{
 					Address: "localhost",
@@ -172,6 +181,25 @@ func TestResolve(t *testing.T) {
 				},
 			},
 		},
+		{
+		        resolver.Target{Endpoint: "user-service"},
+		        []*consul.ServiceEntry{
+		                &consul.ServiceEntry{
+		                        Node: &consul.Node{
+		                                Address: "localhost",
+		                        },
+		                        Service: &consul.AgentService{
+		                                Port: 5678,
+                                        },
+                                },
+                        },
+                        []*consul.AgentService{
+		                &consul.AgentService{
+		                        Address: "localhost",
+		                        Port:     5678,
+                                },
+                        },
+                },
 	}
 
 	for _, tt := range tests {
@@ -179,7 +207,7 @@ func TestResolve(t *testing.T) {
 		newAddressCallCnt := cc.getNewAddressCallCnt()
 		b := NewBuilder()
 
-		health.setResolveAddrs(tt.result)
+		health.setResolveAddrs(tt.services)
 
 		r, err := b.Build(tt.target, &cc, resolver.BuildOptions{})
 		if err != nil {
@@ -211,19 +239,21 @@ func TestResolveNewAddressOnlyCalledOnChange(t *testing.T) {
 	)
 	defer cleanup()
 
-	addr := []*consul.AgentService{
-		&consul.AgentService{
-			Address: "localhost",
-			Port:    5678,
-		},
-	}
+	service := []*consul.ServiceEntry{
+	        &consul.ServiceEntry{
+                        Service: &consul.AgentService{
+                                Address: "localhost",
+                                Port:    5678,
+                        },
+                },
+        }
 
 	cc := testClientConn{}
 	newAddressCallCnt := cc.getNewAddressCallCnt()
 	target := resolver.Target{Endpoint: "user-service"}
 	b := NewBuilder()
 
-	health.setResolveAddrs(addr)
+	health.setResolveAddrs(service)
 
 	r, err := b.Build(target, &cc, resolver.BuildOptions{})
 	if err != nil {
@@ -256,12 +286,36 @@ func TestResolveAddrChange(t *testing.T) {
 	)
 	defer cleanup()
 
+	services1 := []*consul.ServiceEntry{
+	        &consul.ServiceEntry{
+	                Service: &consul.AgentService{
+	                        Address: "localhost",
+	                        Port:    5678,
+                        },
+                },
+        }
+
 	addrs1 := []*consul.AgentService{
 		&consul.AgentService{
 			Address: "localhost",
 			Port:    5678,
 		},
 	}
+
+	services2 := []*consul.ServiceEntry{
+                &consul.ServiceEntry{
+                        Service: &consul.AgentService{
+                                Address: "localhost",
+                                Port:    5678,
+                        },
+                },
+	        &consul.ServiceEntry{
+	                Service: &consul.AgentService{
+	                        Address: "remotehost",
+	                        Port:    12345,
+                        },
+                },
+        }
 
 	addrs2 := []*consul.AgentService{
 		&consul.AgentService{
@@ -280,7 +334,7 @@ func TestResolveAddrChange(t *testing.T) {
 	target := resolver.Target{Endpoint: "user-service"}
 	b := NewBuilder()
 
-	health.setResolveAddrs(addrs1)
+	health.setResolveAddrs(services1)
 
 	r, err := b.Build(target, &cc, resolver.BuildOptions{})
 	if err != nil {
@@ -299,7 +353,7 @@ func TestResolveAddrChange(t *testing.T) {
 	}
 
 	newAddressCallCnt = cc.getNewAddressCallCnt()
-	health.setResolveAddrs(addrs2)
+	health.setResolveAddrs(services2)
 	r.ResolveNow(resolver.ResolveNowOptions{})
 	for newAddressCallCnt == cc.getNewAddressCallCnt() {
 		time.Sleep(time.Millisecond)
@@ -322,12 +376,24 @@ func TestResolveAddrChangesToUnresolvable(t *testing.T) {
 	)
 	defer cleanup()
 
+	services1 := []*consul.ServiceEntry{
+	        &consul.ServiceEntry{
+	                Service: &consul.AgentService{
+	                        Address: "localhost",
+	                        Port:    5678,
+                        },
+                },
+        }
+
 	addrs1 := []*consul.AgentService{
 		&consul.AgentService{
 			Address: "localhost",
 			Port:    5678,
 		},
 	}
+
+	services2 := []*consul.ServiceEntry{}
+
 	addrs2 := []*consul.AgentService{}
 
 	cc := testClientConn{}
@@ -335,7 +401,7 @@ func TestResolveAddrChangesToUnresolvable(t *testing.T) {
 	target := resolver.Target{Endpoint: "user-service"}
 	b := NewBuilder()
 
-	health.setResolveAddrs(addrs1)
+	health.setResolveAddrs(services1)
 
 	r, err := b.Build(target, &cc, resolver.BuildOptions{})
 	if err != nil {
@@ -354,7 +420,7 @@ func TestResolveAddrChangesToUnresolvable(t *testing.T) {
 	}
 
 	newAddressCallCnt = cc.getNewAddressCallCnt()
-	health.setResolveAddrs(addrs2)
+	health.setResolveAddrs(services2)
 	r.ResolveNow(resolver.ResolveNowOptions{})
 	for newAddressCallCnt == cc.getNewAddressCallCnt() {
 		time.Sleep(time.Millisecond)

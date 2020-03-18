@@ -77,8 +77,17 @@ func (c *consulResolver) query(opts *consul.QueryOptions) ([]resolver.Address, u
 
 	result := make([]resolver.Address, 0, len(entries))
 	for _, e := range entries {
+		addr := e.Service.Address
+		if addr == "" {
+			addr = e.Node.Address
+
+			if grpclog.V(2) {
+				grpclog.Infof("grpc: consul service '%s' has no ServiceAddress, using agent address '%+v'", e.Service.ID, addr)
+			}
+		}
+
 		result = append(result, resolver.Address{
-			Addr:       fmt.Sprintf("%s:%d", e.Service.Address, e.Service.Port),
+			Addr:       fmt.Sprintf("%s:%d", addr, e.Service.Port),
 			ServerName: e.Service.ID,
 		})
 	}
