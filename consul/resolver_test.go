@@ -8,8 +8,9 @@ import (
 
 	"github.com/hashicorp/consul/api"
 	consul "github.com/hashicorp/consul/api"
-	"github.com/simplesurance/grpcconsulresolver/mocks"
 	"google.golang.org/grpc/resolver"
+
+	"github.com/simplesurance/grpcconsulresolver/internal/mocks"
 )
 
 func replaceCreateHealthClientFn(fn func(cfg *consul.Config) (consulHealthEndpoint, error)) func() {
