@@ -25,9 +25,9 @@ package consul
 //            tags:			nil
 //	      health:			healthy
 // Example: consul://localhost:1234/user-service?scheme=https&tags=primary,eu
-// Will connect the consul server localhost:1234 via https and lookup the
-// address of the service with the name "user-service" and the tag "primary" or
-// "eu".
+// Will connect to the consul server localhost:1234 via https and lookup the
+// address of the service with the name "user-service" and the tags "primary"
+// and "eu".
 
 import (
 	"errors"

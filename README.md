@@ -46,7 +46,7 @@ func init() {
 func main() {
   // Create a GRPC-Client connection with the default load-balancer.
   // The addresses of the service "user-service" with the tags
-  // "primary" or "eu" are resolved via the consul server "10.10.0.1:1234".
+  // "primary" and "eu" are resolved via the consul server "10.10.0.1:1234".
   // If no services with a passing health-checks are available, the connection
   // is established to unhealthy ones.
   client, _ := grpc.Dial("consul://10.10.0.1:1234/user-service?scheme=https&tags=primary,eu&health=fallbackToUnhealthy")
