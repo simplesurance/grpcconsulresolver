@@ -25,3 +25,7 @@ max_line_length = 80
   indent_style = space
   indent_size = 2
   max_line_length = 0
+
+[*.yml]
+  indent_style = space
+  indent_size = 2
