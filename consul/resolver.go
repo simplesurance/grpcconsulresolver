@@ -38,6 +38,8 @@ type consulHealthEndpoint interface {
 	ServiceMultipleTags(service string, tags []string, passingOnly bool, q *consul.QueryOptions) ([]*consul.ServiceEntry, *consul.QueryMeta, error)
 }
 
+// consulCreateHealthClientFn can be overwritten in tests to make
+// newConsulResolver() return a different consulHealthEndpoint implementation
 var consulCreateHealthClientFn = func(cfg *consul.Config) (consulHealthEndpoint, error) {
 	clt, err := consul.NewClient(cfg)
 	if err != nil {

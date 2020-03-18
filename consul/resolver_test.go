@@ -3,103 +3,14 @@ package consul
 import (
 	"errors"
 	"fmt"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/hashicorp/consul/api"
 	consul "github.com/hashicorp/consul/api"
+	"github.com/simplesurance/grpcconsulresolver/mocks"
 	"google.golang.org/grpc/resolver"
-	"google.golang.org/grpc/serviceconfig"
 )
-
-type testClientConn struct {
-	mutex             sync.Mutex
-	addrs             []resolver.Address
-	newAddressCallCnt int
-	lastReportedError error
-}
-
-func (t *testClientConn) ParseServiceConfig(_ string) *serviceconfig.ParseResult {
-	return &serviceconfig.ParseResult{Err: errors.New("config parsing not implemented in test mock")}
-}
-
-func (t *testClientConn) ReportError(err error) {
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
-
-	t.lastReportedError = err
-}
-
-func (t *testClientConn) UpdateState(state resolver.State) {
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
-
-	t.addrs = state.Addresses
-	t.newAddressCallCnt++
-}
-
-func (t *testClientConn) NewAddress(addrs []resolver.Address) {
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
-
-	t.addrs = addrs
-	t.newAddressCallCnt++
-}
-
-func (t *testClientConn) getNewAddressCallCnt() int {
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
-
-	return t.newAddressCallCnt
-}
-
-func (t *testClientConn) getAddrs() (addrs []resolver.Address) {
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
-
-	return t.addrs
-}
-
-func (*testClientConn) NewServiceConfig(string) {
-}
-
-type consulMockHealthClient struct {
-	mutex     sync.Mutex
-	entries   []*consul.ServiceEntry
-	queryMeta consul.QueryMeta
-	err       error
-}
-
-func (c *consulMockHealthClient) setResolveAddrs(s []*consul.AgentService) {
-	serviceEntries := []*consul.ServiceEntry{}
-	for _, e := range s {
-		serviceEntries = append(serviceEntries,
-			&consul.ServiceEntry{
-				Service: e,
-			})
-	}
-
-	c.setResolveAddrsEntries(serviceEntries)
-}
-
-func (c *consulMockHealthClient) setResolveAddrsEntries(entries []*consul.ServiceEntry) {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-
-	c.entries = entries
-}
-
-func (c *consulMockHealthClient) ServiceMultipleTags(service string, tags []string, passingOnly bool, q *consul.QueryOptions) ([]*consul.ServiceEntry, *consul.QueryMeta, error) {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-
-	if q.Context().Err() != nil {
-		return nil, nil, q.Context().Err()
-	}
-
-	return c.entries, &c.queryMeta, c.err
-}
 
 func replaceCreateHealthClientFn(fn func(cfg *consul.Config) (consulHealthEndpoint, error)) func() {
 	old := consulCreateHealthClientFn
@@ -304,7 +215,7 @@ func TestResolve(t *testing.T) {
 		},
 	}
 
-	health := &consulMockHealthClient{}
+	health := mocks.NewConsulHealthClient()
 	cleanup := replaceCreateHealthClientFn(
 		func(cfg *consul.Config) (consulHealthEndpoint, error) {
 			return health, nil
@@ -314,13 +225,13 @@ func TestResolve(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.target.Endpoint, func(t *testing.T) {
-			cc := testClientConn{}
-			newAddressCallCnt := cc.getNewAddressCallCnt()
+			cc := mocks.NewClientConn()
+			newAddressCallCnt := cc.UpdateStateCallCnt()
 			b := NewBuilder()
 
-			health.setResolveAddrsEntries(tt.consulResponse)
+			health.SetRespEntries(tt.consulResponse)
 
-			r, err := b.Build(tt.target, &cc, resolver.BuildOptions{})
+			r, err := b.Build(tt.target, cc, resolver.BuildOptions{})
 			if err != nil {
 				t.Fatal("Build() failed:", err.Error())
 			}
@@ -328,11 +239,11 @@ func TestResolve(t *testing.T) {
 			r.ResolveNow(resolver.ResolveNowOptions{})
 
 			var addrs []resolver.Address
-			for newAddressCallCnt == cc.getNewAddressCallCnt() {
+			for newAddressCallCnt == cc.UpdateStateCallCnt() {
 				time.Sleep(time.Millisecond)
 			}
 
-			addrs = cc.getAddrs()
+			addrs = cc.Addrs()
 			if !cmpAddrs(addrs, tt.resolverResult) {
 				t.Errorf("resolved address '%+v', expected: '%+v'", addrs, tt.resolverResult)
 			}
@@ -343,7 +254,7 @@ func TestResolve(t *testing.T) {
 }
 
 func TestResolveNewAddressOnlyCalledOnChange(t *testing.T) {
-	health := &consulMockHealthClient{}
+	health := mocks.NewConsulHealthClient()
 	cleanup := replaceCreateHealthClientFn(
 		func(cfg *consul.Config) (consulHealthEndpoint, error) {
 			return health, nil
@@ -358,29 +269,29 @@ func TestResolveNewAddressOnlyCalledOnChange(t *testing.T) {
 		},
 	}
 
-	cc := testClientConn{}
-	newAddressCallCnt := cc.getNewAddressCallCnt()
+	cc := mocks.NewClientConn()
+	newAddressCallCnt := cc.UpdateStateCallCnt()
 	target := resolver.Target{Endpoint: "user-service"}
 	b := NewBuilder()
 
-	health.setResolveAddrs(addr)
+	health.SetRespServiceEntries(addr)
 
-	r, err := b.Build(target, &cc, resolver.BuildOptions{})
+	r, err := b.Build(target, cc, resolver.BuildOptions{})
 	if err != nil {
 		t.Fatal("Build() failed:", err.Error())
 	}
 
 	r.ResolveNow(resolver.ResolveNowOptions{})
 
-	for newAddressCallCnt == cc.getNewAddressCallCnt() {
+	for newAddressCallCnt == cc.UpdateStateCallCnt() {
 		time.Sleep(time.Millisecond)
 	}
-	newAddressCallCnt = cc.getNewAddressCallCnt()
+	newAddressCallCnt = cc.UpdateStateCallCnt()
 
 	r.ResolveNow(resolver.ResolveNowOptions{})
 	time.Sleep(time.Second)
 
-	if newAddressCallCnt != cc.getNewAddressCallCnt() {
+	if newAddressCallCnt != cc.UpdateStateCallCnt() {
 		t.Error("cc.NewAddress() was called despite resolved addresses did not change")
 	}
 
@@ -388,7 +299,7 @@ func TestResolveNewAddressOnlyCalledOnChange(t *testing.T) {
 }
 
 func TestResolveAddrChange(t *testing.T) {
-	health := &consulMockHealthClient{}
+	health := mocks.NewConsulHealthClient()
 	cleanup := replaceCreateHealthClientFn(
 		func(cfg *consul.Config) (consulHealthEndpoint, error) {
 			return health, nil
@@ -415,37 +326,37 @@ func TestResolveAddrChange(t *testing.T) {
 		},
 	}
 
-	cc := testClientConn{}
-	newAddressCallCnt := cc.getNewAddressCallCnt()
+	cc := mocks.NewClientConn()
+	newAddressCallCnt := cc.UpdateStateCallCnt()
 	target := resolver.Target{Endpoint: "user-service"}
 	b := NewBuilder()
 
-	health.setResolveAddrs(addrs1)
+	health.SetRespServiceEntries(addrs1)
 
-	r, err := b.Build(target, &cc, resolver.BuildOptions{})
+	r, err := b.Build(target, cc, resolver.BuildOptions{})
 	if err != nil {
 		t.Fatal("Build() failed:", err.Error())
 	}
 
 	r.ResolveNow(resolver.ResolveNowOptions{})
 
-	for newAddressCallCnt == cc.getNewAddressCallCnt() {
+	for newAddressCallCnt == cc.UpdateStateCallCnt() {
 		time.Sleep(time.Millisecond)
 	}
 
-	resolvedAddrs := cc.getAddrs()
+	resolvedAddrs := cc.Addrs()
 	if !cmpResolveResults(resolvedAddrs, addrs1) {
 		t.Errorf("resolved address '%+v', expected: '%+v'", resolvedAddrs, addrs1)
 	}
 
-	newAddressCallCnt = cc.getNewAddressCallCnt()
-	health.setResolveAddrs(addrs2)
+	newAddressCallCnt = cc.UpdateStateCallCnt()
+	health.SetRespServiceEntries(addrs2)
 	r.ResolveNow(resolver.ResolveNowOptions{})
-	for newAddressCallCnt == cc.getNewAddressCallCnt() {
+	for newAddressCallCnt == cc.UpdateStateCallCnt() {
 		time.Sleep(time.Millisecond)
 	}
 
-	resolvedAddrs = cc.getAddrs()
+	resolvedAddrs = cc.Addrs()
 	if !cmpResolveResults(resolvedAddrs, addrs2) {
 		t.Errorf("resolved address after change '%+v', expected: '%+v'", resolvedAddrs, addrs1)
 	}
@@ -454,7 +365,7 @@ func TestResolveAddrChange(t *testing.T) {
 }
 
 func TestResolveAddrChangesToUnresolvable(t *testing.T) {
-	health := &consulMockHealthClient{}
+	health := mocks.NewConsulHealthClient()
 	cleanup := replaceCreateHealthClientFn(
 		func(cfg *consul.Config) (consulHealthEndpoint, error) {
 			return health, nil
@@ -470,37 +381,37 @@ func TestResolveAddrChangesToUnresolvable(t *testing.T) {
 	}
 	addrs2 := []*consul.AgentService{}
 
-	cc := testClientConn{}
-	newAddressCallCnt := cc.getNewAddressCallCnt()
+	cc := mocks.NewClientConn()
+	newAddressCallCnt := cc.UpdateStateCallCnt()
 	target := resolver.Target{Endpoint: "user-service"}
 	b := NewBuilder()
 
-	health.setResolveAddrs(addrs1)
+	health.SetRespServiceEntries(addrs1)
 
-	r, err := b.Build(target, &cc, resolver.BuildOptions{})
+	r, err := b.Build(target, cc, resolver.BuildOptions{})
 	if err != nil {
 		t.Fatal("Build() failed:", err.Error())
 	}
 
 	r.ResolveNow(resolver.ResolveNowOptions{})
 
-	for newAddressCallCnt == cc.getNewAddressCallCnt() {
+	for newAddressCallCnt == cc.UpdateStateCallCnt() {
 		time.Sleep(time.Millisecond)
 	}
 
-	resolvedAddrs := cc.getAddrs()
+	resolvedAddrs := cc.Addrs()
 	if !cmpResolveResults(resolvedAddrs, addrs1) {
 		t.Errorf("resolved address '%+v', expected: '%+v'", resolvedAddrs, addrs1)
 	}
 
-	newAddressCallCnt = cc.getNewAddressCallCnt()
-	health.setResolveAddrs(addrs2)
+	newAddressCallCnt = cc.UpdateStateCallCnt()
+	health.SetRespServiceEntries(addrs2)
 	r.ResolveNow(resolver.ResolveNowOptions{})
-	for newAddressCallCnt == cc.getNewAddressCallCnt() {
+	for newAddressCallCnt == cc.UpdateStateCallCnt() {
 		time.Sleep(time.Millisecond)
 	}
 
-	resolvedAddrs = cc.getAddrs()
+	resolvedAddrs = cc.Addrs()
 	if !cmpResolveResults(resolvedAddrs, addrs2) {
 		t.Errorf("resolved address after change '%+v', expected: '%+v'", resolvedAddrs, addrs1)
 	}
@@ -510,7 +421,9 @@ func TestResolveAddrChangesToUnresolvable(t *testing.T) {
 
 func TestErrorIsReportedOnQueryErrors(t *testing.T) {
 	queryErr := errors.New("query failed")
-	health := &consulMockHealthClient{err: queryErr}
+	health := mocks.NewConsulHealthClient()
+	health.SetRespError(queryErr)
+
 	cleanup := replaceCreateHealthClientFn(
 		func(cfg *consul.Config) (consulHealthEndpoint, error) {
 			return health, nil
@@ -518,25 +431,18 @@ func TestErrorIsReportedOnQueryErrors(t *testing.T) {
 	)
 	defer cleanup()
 
-	cc := testClientConn{}
+	cc := mocks.NewClientConn()
 	b := NewBuilder()
 	target := resolver.Target{Endpoint: "user-service"}
 
-	r, err := b.Build(target, &cc, resolver.BuildOptions{})
+	r, err := b.Build(target, cc, resolver.BuildOptions{})
 	if err != nil {
 		t.Fatal("Build() failed:", err.Error())
 	}
 
 	r.ResolveNow(resolver.ResolveNowOptions{})
 
-	gethealthErr := func() error {
-		cc.mutex.Lock()
-		defer cc.mutex.Unlock()
-
-		return cc.lastReportedError
-	}
-
-	for ; err == nil; err = gethealthErr() {
+	for ; err == nil; err = cc.LastReportedError() {
 		time.Sleep(time.Millisecond)
 
 	}
