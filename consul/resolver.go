@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sort"
 	"sync"
 	"time"
 
@@ -113,6 +114,8 @@ func (c *consulResolver) query(opts *consul.QueryOptions) ([]resolver.Address, u
 		})
 	}
 
+	sortAddresses(result)
+
 	if grpclog.V(1) {
 		grpclog.Infof("grpc: consul service '%s' resolved to '%+v'", c.service, result)
 	}
@@ -137,6 +140,12 @@ func filterPreferOnlyHealthy(entries []*consul.ServiceEntry) []*consul.ServiceEn
 	}
 
 	return entries
+}
+
+func sortAddresses(addrs []resolver.Address) {
+	sort.Slice(addrs, func(i, j int) bool {
+		return addrs[i].Addr < addrs[j].Addr
+	})
 }
 
 func (c *consulResolver) watcher() {

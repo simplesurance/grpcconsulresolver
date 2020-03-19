@@ -508,3 +508,53 @@ func TestErrorIsReportedOnQueryErrors(t *testing.T) {
 		t.Fatalf("resolver error is %+v, expected %+v", err, queryErr)
 	}
 }
+
+func TestQueryResultsAreSorted(t *testing.T) {
+	cc := mocks.NewClientConn()
+	newAddressCallCnt := cc.UpdateStateCallCnt()
+	health := mocks.NewConsulHealthClient()
+	cleanup := replaceCreateHealthClientFn(
+		func(cfg *consul.Config) (consulHealthEndpoint, error) {
+			return health, nil
+		},
+	)
+	defer cleanup()
+
+	health.SetRespEntries([]*consul.ServiceEntry{
+		{
+			Service: &consul.AgentService{
+				Address: "227.0.0.1",
+				Port:    1,
+			},
+		},
+		{
+			Service: &consul.AgentService{
+				Address: "127.0.0.1",
+				Port:    1,
+			},
+		},
+	})
+
+	r, err := NewBuilder().Build(resolver.Target{Endpoint: "test"}, cc, resolver.BuildOptions{})
+	if err != nil {
+		t.Fatal("Build() failed:", err.Error())
+	}
+
+	r.ResolveNow(resolver.ResolveNowOptions{})
+
+	for newAddressCallCnt == cc.UpdateStateCallCnt() {
+		time.Sleep(time.Millisecond)
+	}
+
+	resolvedAddrs := cc.Addrs()
+
+	if len(resolvedAddrs) != 2 {
+		t.Fatal("resolver returned 1 address, expected 2")
+	}
+
+	if resolvedAddrs[0].Addr != "127.0.0.1:1" {
+		t.Errorf("query response is not sorted")
+	}
+
+	r.Close()
+}
