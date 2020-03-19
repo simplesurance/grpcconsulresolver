@@ -109,8 +109,7 @@ func (c *consulResolver) query(opts *consul.QueryOptions) ([]resolver.Address, u
 		}
 
 		result = append(result, resolver.Address{
-			Addr:       fmt.Sprintf("%s:%d", addr, e.Service.Port),
-			ServerName: e.Service.ID,
+			Addr: fmt.Sprintf("%s:%d", addr, e.Service.Port),
 		})
 	}
 
