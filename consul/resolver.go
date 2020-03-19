@@ -141,7 +141,8 @@ func filterPreferOnlyHealthy(entries []*consul.ServiceEntry) []*consul.ServiceEn
 }
 
 func (c *consulResolver) watcher() {
-	var lastAddrs []resolver.Address
+	var lastReportedAddrs []resolver.Address
+	var lastWaitIndex uint64
 
 	opts := (&consul.QueryOptions{}).WithContext(c.ctx)
 
@@ -152,7 +153,9 @@ func (c *consulResolver) watcher() {
 			var addrs []resolver.Address
 			var err error
 
+			queryStartTime := time.Now()
 			addrs, opts.WaitIndex, err = c.query(opts)
+			lastWaitIndex = opts.WaitIndex
 			if err != nil {
 				if errors.Is(err, context.Canceled) {
 					return
@@ -171,20 +174,27 @@ func (c *consulResolver) watcher() {
 			// data newer then the passed opts.WaitIndex is available.
 			// We check if the returned addrs changed to not call
 			// cc.UpdateState() unnecessary for unchanged addresses.
-			if (len(addrs) == 0 && len(lastAddrs) == 0) ||
-				reflect.DeepEqual(addrs, lastAddrs) {
-				// sleep a bit to prevent that query() is
-				// called in a tight-loop if the consul server
-				// returns multiple time immediately, despite
-				// that we pass a waitindex and ask for a
-				// blocking query. This should not happen,
-				// except the consul server is buggy.
-				time.Sleep(50 * time.Millisecond)
+			if (len(addrs) == 0 && len(lastReportedAddrs) == 0) ||
+				reflect.DeepEqual(addrs, lastReportedAddrs) {
+
+				// If the consul server responds with
+				// the same data then in the last
+				// query in less then 50ms, we sleep a
+				// bit to prevent querying in a tight loop
+				// This should only happen if the consul server
+				// is buggy but better be safe. :-)
+				if lastWaitIndex == opts.WaitIndex &&
+					time.Since(queryStartTime) < 50*time.Millisecond {
+					grpclog.Warningf("grpc: consul responded too fast with same data and waitIndex (%d) then in previous query, delaying next query",
+						opts.WaitIndex)
+					time.Sleep(50 * time.Millisecond)
+				}
+
 				continue
 			}
 
 			c.cc.UpdateState(resolver.State{Addresses: addrs})
-			lastAddrs = addrs
+			lastReportedAddrs = addrs
 		}
 
 		select {
