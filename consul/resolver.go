@@ -88,7 +88,7 @@ func (c *consulResolver) start() {
 func (c *consulResolver) query(opts *consul.QueryOptions) ([]resolver.Address, uint64, error) {
 	entries, meta, err := c.consulHealth.ServiceMultipleTags(c.service, c.tags, c.healthFilter == healthFilterOnlyHealthy, opts)
 	if err != nil {
-		grpclog.Infof("grpc: resolving service name '%s' via consul failed: %v\n",
+		grpclog.Infof("grpcconsulresolver: resolving service name '%s' via consul failed: %v\n",
 			c.service, err)
 
 		return nil, 0, err
@@ -105,7 +105,7 @@ func (c *consulResolver) query(opts *consul.QueryOptions) ([]resolver.Address, u
 			addr = e.Node.Address
 
 			if grpclog.V(2) {
-				grpclog.Infof("grpc: consul service '%s' has no ServiceAddress, using agent address '%+v'", e.Service.ID, addr)
+				grpclog.Infof("grpcconsulresolver: service '%s' has no ServiceAddress, using agent address '%+v'", e.Service.ID, addr)
 			}
 		}
 
@@ -117,7 +117,7 @@ func (c *consulResolver) query(opts *consul.QueryOptions) ([]resolver.Address, u
 	sortAddresses(result)
 
 	if grpclog.V(1) {
-		grpclog.Infof("grpc: consul service '%s' resolved to '%+v'", c.service, result)
+		grpclog.Infof("grpcconsulresolver: service '%s' resolved to '%+v'", c.service, result)
 	}
 
 	return result, meta.LastIndex, nil
@@ -193,7 +193,7 @@ func (c *consulResolver) watcher() {
 				// is buggy but better be safe. :-)
 				if lastWaitIndex == opts.WaitIndex &&
 					time.Since(queryStartTime) < 50*time.Millisecond {
-					grpclog.Warningf("grpc: consul responded too fast with same data and waitIndex (%d) then in previous query, delaying next query",
+					grpclog.Warningf("grpcconsulresolver: consul responded too fast with same data and waitIndex (%d) then in previous query, delaying next query",
 						opts.WaitIndex)
 					time.Sleep(50 * time.Millisecond)
 				}
