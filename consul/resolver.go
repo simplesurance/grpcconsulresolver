@@ -150,7 +150,6 @@ func sortAddresses(addrs []resolver.Address) {
 
 func (c *consulResolver) watcher() {
 	var lastReportedAddrs []resolver.Address
-	var lastWaitIndex uint64
 
 	opts := (&consul.QueryOptions{}).WithContext(c.ctx)
 
@@ -161,9 +160,10 @@ func (c *consulResolver) watcher() {
 			var addrs []resolver.Address
 			var err error
 
+			lastWaitIndex := opts.WaitIndex
+
 			queryStartTime := time.Now()
 			addrs, opts.WaitIndex, err = c.query(opts)
-			lastWaitIndex = opts.WaitIndex
 			if err != nil {
 				if errors.Is(err, context.Canceled) {
 					return
