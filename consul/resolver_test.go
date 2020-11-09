@@ -283,7 +283,7 @@ func TestResolveNewAddressOnlyCalledOnChange(t *testing.T) {
 	defer cleanup()
 
 	service := []*consul.ServiceEntry{
-		&consul.ServiceEntry{
+		{
 			Service: &consul.AgentService{
 				Address: "localhost",
 				Port:    5678,
@@ -330,7 +330,7 @@ func TestResolveAddrChange(t *testing.T) {
 	defer cleanup()
 
 	services1 := []*consul.ServiceEntry{
-		&consul.ServiceEntry{
+		{
 			Service: &consul.AgentService{
 				Address: "localhost",
 				Port:    5678,
@@ -339,20 +339,20 @@ func TestResolveAddrChange(t *testing.T) {
 	}
 
 	addrs1 := []*consul.AgentService{
-		&consul.AgentService{
+		{
 			Address: "localhost",
 			Port:    5678,
 		},
 	}
 
 	services2 := []*consul.ServiceEntry{
-		&consul.ServiceEntry{
+		{
 			Service: &consul.AgentService{
 				Address: "localhost",
 				Port:    5678,
 			},
 		},
-		&consul.ServiceEntry{
+		{
 			Service: &consul.AgentService{
 				Address: "remotehost",
 				Port:    12345,
@@ -361,7 +361,7 @@ func TestResolveAddrChange(t *testing.T) {
 	}
 
 	addrs2 := []*consul.AgentService{
-		&consul.AgentService{
+		{
 			Address: "localhost",
 			Port:    5678,
 		},
@@ -419,7 +419,7 @@ func TestResolveAddrChangesToUnresolvable(t *testing.T) {
 	defer cleanup()
 
 	services1 := []*consul.ServiceEntry{
-		&consul.ServiceEntry{
+		{
 			Service: &consul.AgentService{
 				Address: "localhost",
 				Port:    5678,
@@ -428,7 +428,7 @@ func TestResolveAddrChangesToUnresolvable(t *testing.T) {
 	}
 
 	addrs1 := []*consul.AgentService{
-		&consul.AgentService{
+		{
 			Address: "localhost",
 			Port:    5678,
 		},
