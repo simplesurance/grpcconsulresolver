@@ -182,9 +182,12 @@ func (c *consulResolver) watcher() {
 			// data newer then the passed opts.WaitIndex is available.
 			// We check if the returned addrs changed to not call
 			// cc.UpdateState() unnecessary for unchanged addresses.
-			if (len(addrs) == 0 && len(lastReportedAddrs) == 0) ||
-				reflect.DeepEqual(addrs, lastReportedAddrs) {
-
+			// If the service does not exist, an empty addrs slice
+			// is returned. If we never reported any resolved
+			// addresses (addrs is nil), we have to report an empty
+			// set of resolved addresses. It informs the grpc-balancer that resolution is not
+			// in progress anymore and grpc calls can failFast.
+			if reflect.DeepEqual(addrs, lastReportedAddrs) {
 				// If the consul server responds with
 				// the same data then in the last
 				// query in less then 50ms, we sleep a
