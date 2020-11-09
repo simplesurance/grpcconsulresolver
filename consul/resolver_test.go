@@ -119,6 +119,13 @@ func TestResolve(t *testing.T) {
 		},
 
 		{
+			name:           "emptyConsulResponseResolvestoEmptyAddrs",
+			target:         resolver.Target{Endpoint: "user-service"},
+			consulResponse: []*consul.ServiceEntry{},
+			resolverResult: []resolver.Address{},
+		},
+
+		{
 			name:   "UseAgentAddrIfServiceAddrEmpty",
 			target: resolver.Target{Endpoint: "user-service"},
 			consulResponse: []*consul.ServiceEntry{
