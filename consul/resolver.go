@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 	"sort"
 	"sync"
 	"time"
@@ -100,6 +99,8 @@ func (c *consulResolver) query(opts *consul.QueryOptions) ([]resolver.Address, u
 
 	result := make([]resolver.Address, 0, len(entries))
 	for _, e := range entries {
+		// when additionals fields are set in addr, addressesEqual()
+		// must be updated to honour them
 		addr := e.Service.Address
 		if addr == "" {
 			addr = e.Node.Address
@@ -113,8 +114,6 @@ func (c *consulResolver) query(opts *consul.QueryOptions) ([]resolver.Address, u
 			Addr: fmt.Sprintf("%s:%d", addr, e.Service.Port),
 		})
 	}
-
-	sortAddresses(result)
 
 	if grpclog.V(1) {
 		grpclog.Infof("grpcconsulresolver: service '%s' resolved to '%+v'", c.service, result)
@@ -142,10 +141,26 @@ func filterPreferOnlyHealthy(entries []*consul.ServiceEntry) []*consul.ServiceEn
 	return entries
 }
 
-func sortAddresses(addrs []resolver.Address) {
-	sort.Slice(addrs, func(i, j int) bool {
-		return addrs[i].Addr < addrs[j].Addr
-	})
+func addressesEqual(a, b []resolver.Address) bool {
+	if a == nil && b != nil {
+		return false
+	}
+
+	if a != nil && b == nil {
+		return false
+	}
+
+	if len(a) != len(b) {
+		return false
+	}
+
+	for i := range a {
+		if a[i].Addr != b[i].Addr {
+			return false
+		}
+	}
+
+	return true
 }
 
 func (c *consulResolver) watcher() {
@@ -178,6 +193,10 @@ func (c *consulResolver) watcher() {
 				break
 			}
 
+			sort.Slice(addrs, func(i, j int) bool {
+				return addrs[i].Addr < addrs[j].Addr
+			})
+
 			// query() blocks until a consul internal timeout expired or
 			// data newer then the passed opts.WaitIndex is available.
 			// We check if the returned addrs changed to not call
@@ -187,7 +206,8 @@ func (c *consulResolver) watcher() {
 			// addresses (addrs is nil), we have to report an empty
 			// set of resolved addresses. It informs the grpc-balancer that resolution is not
 			// in progress anymore and grpc calls can failFast.
-			if reflect.DeepEqual(addrs, lastReportedAddrs) {
+			// TODO: replace DeepEqual with a custom Cmp function
+			if addressesEqual(addrs, lastReportedAddrs) {
 				// If the consul server responds with
 				// the same data then in the last
 				// query in less then 50ms, we sleep a
