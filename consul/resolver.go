@@ -206,7 +206,6 @@ func (c *consulResolver) watcher() {
 			// addresses (addrs is nil), we have to report an empty
 			// set of resolved addresses. It informs the grpc-balancer that resolution is not
 			// in progress anymore and grpc calls can failFast.
-			// TODO: replace DeepEqual with a custom Cmp function
 			if addressesEqual(addrs, lastReportedAddrs) {
 				// If the consul server responds with
 				// the same data then in the last
