@@ -38,6 +38,7 @@ func Register(ctx context.Context, name string, host string, port int, target st
         Port: port,
         Address: host,
 		Check: &api.AgentServiceCheck{
+			CheckID: serviceID,
 			TTL: fmt.Sprintf("%ds", ttl),
 			Status: api.HealthPassing,
 			DeregisterCriticalServiceAfter: "1m",
@@ -52,27 +53,29 @@ func Register(ctx context.Context, name string, host string, port int, target st
 
 	// ttl ticker
 	ticker := time.NewTicker(time.Duration(ttl) * time.Second / 5)	
-	defer ticker.Stop()
-
 	subCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
 
 	// notify on signal
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT, syscall.SIGKILL, syscall.SIGHUP, syscall.SIGQUIT)
 
-	for {
-		select {
-		case <-ch:
-			cancel()
-		case <-subCtx.Done():
-			client.Agent().ServiceDeregister(serviceID)
-			return nil
-		case <-ticker.C:
-			err := client.Agent().UpdateTTL(serviceID, "", "passing")
-			if err != nil {
-				grpclog.Infof("Consul registry updateTTL for %s failed: %v", name, err)
+	go func() {
+		for {
+			select {
+			case <-ch:
+				cancel()
+			case <-subCtx.Done():
+				ticker.Stop()
+				client.Agent().ServiceDeregister(serviceID)
+				return
+			case <-ticker.C:
+				err := client.Agent().UpdateTTL(serviceID, "TTL active", api.HealthPassing)
+				if err != nil {
+					grpclog.Infof("Consul registry updateTTL for %s failed: %v", name, err)
+				}
 			}
 		}
-	}
+	}()
+
+	return nil
 }
