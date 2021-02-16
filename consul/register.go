@@ -33,26 +33,26 @@ func Register(ctx context.Context, name string, host string, port int, target st
 	// service definition
 	serviceID := fmt.Sprintf("%s-%s-%d", name, host, port)
 	reg := &api.AgentServiceRegistration{
-        ID: serviceID,
-        Name: name,
-        Port: port,
-        Address: host,
+		ID:      serviceID,
+		Name:    name,
+		Port:    port,
+		Address: host,
 		Check: &api.AgentServiceCheck{
-			CheckID: serviceID,
-			TTL: fmt.Sprintf("%ds", ttl),
-			Status: api.HealthPassing,
+			CheckID:                        serviceID,
+			TTL:                            fmt.Sprintf("%ds", ttl),
+			Status:                         api.HealthPassing,
 			DeregisterCriticalServiceAfter: "1m",
 		},
 	}
 
 	// register service
-	err = client.Agent().ServiceRegister(reg);
+	err = client.Agent().ServiceRegister(reg)
 	if err != nil {
 		return fmt.Errorf("Consul service register error: %v", err)
 	}
 
 	// ttl ticker
-	ticker := time.NewTicker(time.Duration(ttl) * time.Second / 5)	
+	ticker := time.NewTicker(time.Duration(ttl) * time.Second / 5)
 	subCtx, cancel := context.WithCancel(ctx)
 
 	// notify on signal
@@ -66,7 +66,10 @@ func Register(ctx context.Context, name string, host string, port int, target st
 				cancel()
 			case <-subCtx.Done():
 				ticker.Stop()
-				client.Agent().ServiceDeregister(serviceID)
+				err := client.Agent().ServiceDeregister(serviceID)
+				if err != nil {
+					grpclog.Infof("Consul service de-register failed: %v", err)
+				}
 				return
 			case <-ticker.C:
 				err := client.Agent().UpdateTTL(serviceID, "TTL active", api.HealthPassing)
