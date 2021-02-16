@@ -13,12 +13,17 @@ import (
 )
 
 // Register is the helper function to register service with Consul server
+// context
 // name - service name
 // host - service host
 // port - service port
 // target - consul dial address, for example: "127.0.0.1:8500"
 // ttl - ttl of the register information
-func Register(name string, host string, port int, target string, ttl int) error {
+func Register(ctx context.Context, name string, host string, port int, target string, ttl int) error {
+	if ctx == nil {
+		panic("nil context")
+	}
+
 	conf := &api.Config{Scheme: "http", Address: target}
 	client, err := api.NewClient(conf)
 	if err != nil {
@@ -46,8 +51,13 @@ func Register(name string, host string, port int, target string, ttl int) error 
 	}
 
 	// ttl ticker
-	ticker := time.NewTicker(time.Duration(ttl) * time.Second / 5)
-	ctx, cancel := context.WithCancel(context.Background())
+	ticker := time.NewTicker(time.Duration(ttl) * time.Second / 5)	
+	defer ticker.Stop()
+
+	subCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	// notify on signal
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT, syscall.SIGKILL, syscall.SIGHUP, syscall.SIGQUIT)
 
@@ -55,9 +65,9 @@ func Register(name string, host string, port int, target string, ttl int) error 
 		select {
 		case <-ch:
 			cancel()
-		case <-ctx.Done():
-			ticker.Stop()
+		case <-subCtx.Done():
 			client.Agent().ServiceDeregister(serviceID)
+			return nil
 		case <-ticker.C:
 			err := client.Agent().UpdateTTL(serviceID, "", "passing")
 			if err != nil {
