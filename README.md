@@ -26,7 +26,7 @@ The default for `<consul-server>` is `127.0.0.1:8500`.
 | tags       | `<tag>,[,<tag>]...`             |          | Filter service by tags                                                                                                                                           |
 | health     | `healthy\|fallbackToUnhealthy`  | healthy  | `healthy` resolves only to services with a passing health status.<br>`fallbackToUnhealthy` resolves to unhealthy ones if none exist with passing healthy status. |
 
-## Example
+## Example resolver
 
 ```go
 package main
@@ -55,5 +55,29 @@ func main() {
   // The addresses of the service "metrics" are resolved via the default
   // consul server "http://127.0.01:8500".
   client, _ = grpc.Dial("consul://metrics", grpc.WithBalancerName("round_robin"))
+}
+```
+
+
+## Example registration
+
+```go
+package main
+
+import (
+  "context"
+  "google.golang.org/grpc"
+  "github.com/simplesurance/grpcconsulresolver/consul"
+)
+
+func main() {
+  ctx := context.Background()
+
+  // Register a service with consul having the following details:
+  // Service name: user-service
+  // GRPC server at: localhost:9090
+  // Consul server at: 127.0.0.1:8500
+  // TTL: 15
+  consul.Register(ctx, "user-service", "localhost", 9090, "127.0.0.1:8500", 15)
 }
 ```
