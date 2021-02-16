@@ -41,9 +41,9 @@ func Register(name string, host string, port int, target string, ttl int) error 
 
 	// register service
 	err = client.Agent().ServiceRegister(reg);
-    if err != nil {
-        return fmt.Errorf("Consul service register error: %v", err)
-    }
+	if err != nil {
+		return fmt.Errorf("Consul service register error: %v", err)
+	}
 
 	// ttl ticker
 	ticker := time.NewTicker(time.Duration(ttl) * time.Second / 5)
