@@ -1,4 +1,4 @@
-# Consul Resolver for the grpc-go library ![](https://github.com/simplesurance/grpcconsulresolver/workflows/ci/badge.svg)
+# Consul Resolver for the grpc-go library ![](https://github.com/easeq/go-consul-registry/workflows/ci/badge.svg)
 
 The repository provides a consul resolver for the
 [GRPC-Go Library](https://github.com/grpc/grpc-go) >= 1.26.
@@ -35,7 +35,7 @@ import (
   "google.golang.org/grpc"
   "google.golang.org/grpc/resolver"
 
-  "github.com/simplesurance/grpcconsulresolver/consul"
+  "github.com/easeq/go-consul-registry/consul"
 )
 
 func init() {
@@ -67,7 +67,7 @@ package main
 import (
   "context"
   "google.golang.org/grpc"
-  "github.com/simplesurance/grpcconsulresolver/consul"
+  "github.com/easeq/go-consul-registry/consul"
 )
 
 func main() {
