@@ -4,7 +4,7 @@ linters:
     - deadcode
     - errcheck
     - goimports
-    - golint
+    - revive
     - gosimple
     - ineffassign
     - interfacer
