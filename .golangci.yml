@@ -7,7 +7,6 @@ linters:
     - revive
     - gosimple
     - ineffassign
-    - interfacer
     - misspell
     - rowserrcheck
     - structcheck
