@@ -1,7 +1,7 @@
 # Consul Resolver for the grpc-go library ![](https://github.com/simplesurance/grpcconsulresolver/workflows/ci/badge.svg)
 
 The repository provides a consul resolver for the
-[GRPC-Go Library](https://github.com/grpc/grpc-go) >= 1.26.
+[GRPC-Go Library](https://github.com/grpc/grpc-go).
 
 To register the resolver with the GRPC-Go library run:
 
