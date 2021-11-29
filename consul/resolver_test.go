@@ -373,7 +373,7 @@ func TestResolveAddrChange(t *testing.T) {
 			Port:    5678,
 		},
 
-		&consul.AgentService{
+		{
 			Address: "remotehost",
 			Port:    12345,
 		},
