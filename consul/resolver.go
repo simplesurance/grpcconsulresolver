@@ -87,6 +87,10 @@ func (c *consulResolver) start() {
 }
 
 func (c *consulResolver) query(opts *consul.QueryOptions) ([]resolver.Address, uint64, error) {
+	if grpclog.V(1) {
+		grpclog.Infof("grpcconsulresolver: querying consul (waitIndex: %d, waitTime: %fs)", opts.WaitIndex, opts.WaitTime.Seconds())
+	}
+
 	entries, meta, err := c.consulHealth.ServiceMultipleTags(c.service, c.tags, c.healthFilter == healthFilterOnlyHealthy, opts)
 	if err != nil {
 		grpclog.Infof("grpcconsulresolver: resolving service name '%s' via consul failed: %v\n",
@@ -260,6 +264,10 @@ func (c *consulResolver) watcher() {
 }
 
 func (c *consulResolver) ResolveNow(o resolver.ResolveNowOptions) {
+	if grpclog.V(1) {
+		grpclog.Infof("grpcconsulresolver: reresolving target was requested")
+	}
+
 	select {
 	case c.resolveNow <- struct{}{}:
 
