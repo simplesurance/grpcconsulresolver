@@ -2,7 +2,6 @@ package mocks
 
 import (
 	"sync"
-	"time"
 
 	consul "github.com/hashicorp/consul/api"
 )
@@ -51,8 +50,6 @@ func (c *ConsulHealthClient) ServiceMultipleTags(service string, tags []string, 
 	if q.Context().Err() != nil {
 		return nil, nil, q.Context().Err()
 	}
-
-	time.Sleep(q.WaitTime)
 
 	return c.entries, &c.queryMeta, c.err
 }
