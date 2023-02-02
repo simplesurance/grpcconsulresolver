@@ -1,19 +1,23 @@
 linters:
   disable-all: true
   enable:
-    - deadcode
     - errcheck
+    - exportloopref
+    - gocritic
     - goimports
-    - revive
+    - goprintffuncname
     - gosimple
     - ineffassign
     - misspell
-    - rowserrcheck
-    - structcheck
+    - nolintlint
+    - prealloc
+    - revive
+    - staticcheck
+    - tenv
     - typecheck
     - unconvert
     - unused
-    - varcheck
+    - usestdlibvars
     - vet
 
 linters-settings:
