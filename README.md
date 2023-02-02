@@ -1,12 +1,12 @@
-# Consul Resolver for the grpc-go library
+# Consul Resolver for grpc-go
 ![](https://github.com/simplesurance/grpcconsulresolver/workflows/ci/badge.svg)
 [![Go Report Card](https://goreportcard.com/badge/github.com/simplesurance/grpcconsulresolver)](https://goreportcard.com/report/github.com/simplesurance/grpcconsulresolver)
 [![GoDoc](https://img.shields.io/badge/godoc-reference-blue.svg)](https://pkg.go.dev/github.com/simplesurance/grpcconsulresolver)
 
 The repository provides a consul resolver for the
-[GRPC-Go Library](https://github.com/grpc/grpc-go).
+[GRPC-Go Package](https://github.com/grpc/grpc-go).
 
-To register the resolver with the GRPC-Go library run:
+To register the resolver with the grpc-go run:
 
 ```go
 resolver.Register(consul.NewBuilder())
