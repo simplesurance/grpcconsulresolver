@@ -158,7 +158,7 @@ func (*resolverBuilder) Build(target resolver.Target, cc resolver.ClientConn, _ 
 		return nil, err
 	}
 
-	r, err := newConsulResolver(cc, scheme, target.Authority, serviceName, tags, health)
+	r, err := newConsulResolver(cc, scheme, target.URL.Host , serviceName, tags, health)
 	if err != nil {
 		return nil, err
 	}
