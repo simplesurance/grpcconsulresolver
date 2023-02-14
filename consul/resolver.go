@@ -225,6 +225,10 @@ func (c *consulResolver) watcher() {
 
 			err = c.cc.UpdateState(resolver.State{Addresses: addrs})
 			if err != nil && grpclog.V(2) {
+				// UpdateState errors can be ignored in
+				// watch-based resolvers, see
+				// https://github.com/grpc/grpc-go/issues/5048
+				// for a detailed explanation.
 				grpclog.Infof("grpcconsulresolver: ignoring error returned by UpdateState, no other addresses available, error: %s", err)
 			}
 			lastReportedAddrs = addrs
