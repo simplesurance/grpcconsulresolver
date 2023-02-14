@@ -3,6 +3,7 @@ package consul
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"testing"
 	"time"
 
@@ -11,7 +12,6 @@ import (
 	"google.golang.org/grpc/resolver"
 
 	"github.com/simplesurance/grpcconsulresolver/internal/mocks"
-	"net/url"
 )
 
 func replaceCreateHealthClientFn(fn func(cfg *consul.Config) (consulHealthEndpoint, error)) func() {
