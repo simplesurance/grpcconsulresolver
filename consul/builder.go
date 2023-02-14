@@ -153,12 +153,12 @@ func parseEndpoint(endpoint string) (serviceName, scheme string, tags []string, 
 }
 
 func (*resolverBuilder) Build(target resolver.Target, cc resolver.ClientConn, _ resolver.BuildOptions) (resolver.Resolver, error) {
-	serviceName, scheme, tags, health, err := parseEndpoint(target.Endpoint)
+	serviceName, scheme, tags, health, err := parseEndpoint(target.URL.RequestURI())
 	if err != nil {
 		return nil, err
 	}
 
-	r, err := newConsulResolver(cc, scheme, target.Authority, serviceName, tags, health)
+	r, err := newConsulResolver(cc, scheme, target.URL.Host, serviceName, tags, health)
 	if err != nil {
 		return nil, err
 	}

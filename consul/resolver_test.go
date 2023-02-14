@@ -3,6 +3,7 @@ package consul
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"testing"
 	"time"
 
@@ -93,7 +94,7 @@ func TestResolve(t *testing.T) {
 	}{
 		{
 			name:   "defaultResolve",
-			target: resolver.Target{Endpoint: "user-service"},
+			target: resolver.Target{URL: url.URL{Path: "user-service"}},
 			consulResponse: []*consul.ServiceEntry{
 				{
 					Service: &api.AgentService{
@@ -120,14 +121,14 @@ func TestResolve(t *testing.T) {
 
 		{
 			name:           "emptyConsulResponseResolvestoEmptyAddrs",
-			target:         resolver.Target{Endpoint: "user-service"},
+			target:         resolver.Target{URL: url.URL{Path: "user-service"}},
 			consulResponse: []*consul.ServiceEntry{},
 			resolverResult: []resolver.Address{},
 		},
 
 		{
 			name:   "UseAgentAddrIfServiceAddrEmpty",
-			target: resolver.Target{Endpoint: "user-service"},
+			target: resolver.Target{URL: url.URL{Path: "user-service"}},
 			consulResponse: []*consul.ServiceEntry{
 				{
 					Service: &consul.AgentService{
@@ -147,7 +148,7 @@ func TestResolve(t *testing.T) {
 
 		{
 			name:   "fallbackToUnhealthy_ResolveToOnlyHealthy",
-			target: resolver.Target{Endpoint: "credit-service?health=fallbackToUnhealthy"},
+			target: resolver.Target{URL: url.URL{Path: "credit-service", RawQuery: "health=fallbackToUnhealthy"}},
 			consulResponse: []*consul.ServiceEntry{
 				{
 					Service: &api.AgentService{
@@ -206,7 +207,7 @@ func TestResolve(t *testing.T) {
 
 		{
 			name:   "fallbackToUnhealthy_AllUnhealthy",
-			target: resolver.Target{Endpoint: "web-service?health=fallbackToUnhealthy"},
+			target: resolver.Target{URL: url.URL{Path: "web-service", RawQuery: "health=fallbackToUnhealthy"}},
 			consulResponse: []*consul.ServiceEntry{
 				{
 					Service: &api.AgentService{
@@ -251,7 +252,7 @@ func TestResolve(t *testing.T) {
 	defer cleanup()
 
 	for _, tt := range tests {
-		t.Run(tt.target.Endpoint, func(t *testing.T) {
+		t.Run(tt.target.URL.RequestURI(), func(t *testing.T) {
 			cc := mocks.NewClientConn()
 			newAddressCallCnt := cc.UpdateStateCallCnt()
 			b := NewBuilder()
@@ -300,7 +301,7 @@ func TestResolveNewAddressOnlyCalledOnChange(t *testing.T) {
 
 	cc := mocks.NewClientConn()
 	newAddressCallCnt := cc.UpdateStateCallCnt()
-	target := resolver.Target{Endpoint: "user-service"}
+	target := resolver.Target{URL: url.URL{Path: "user-service"}}
 	b := NewBuilder()
 
 	health.SetRespEntries(service)
@@ -381,7 +382,7 @@ func TestResolveAddrChange(t *testing.T) {
 
 	cc := mocks.NewClientConn()
 	newAddressCallCnt := cc.UpdateStateCallCnt()
-	target := resolver.Target{Endpoint: "user-service"}
+	target := resolver.Target{URL: url.URL{Path: "user-service"}}
 	b := NewBuilder()
 	health.SetRespEntries(services1)
 
@@ -447,7 +448,7 @@ func TestResolveAddrChangesToUnresolvable(t *testing.T) {
 
 	cc := mocks.NewClientConn()
 	newAddressCallCnt := cc.UpdateStateCallCnt()
-	target := resolver.Target{Endpoint: "user-service"}
+	target := resolver.Target{URL: url.URL{Path: "user-service"}}
 	b := NewBuilder()
 
 	health.SetRespEntries(services1)
@@ -497,7 +498,7 @@ func TestErrorIsReportedOnQueryErrors(t *testing.T) {
 
 	cc := mocks.NewClientConn()
 	b := NewBuilder()
-	target := resolver.Target{Endpoint: "user-service"}
+	target := resolver.Target{URL: url.URL{Path: "user-service"}}
 
 	r, err := b.Build(target, cc, resolver.BuildOptions{})
 	if err != nil {
@@ -542,7 +543,7 @@ func TestQueryResultsAreSorted(t *testing.T) {
 		},
 	})
 
-	r, err := NewBuilder().Build(resolver.Target{Endpoint: "test"}, cc, resolver.BuildOptions{})
+	r, err := NewBuilder().Build(resolver.Target{URL: url.URL{Path: "test"}}, cc, resolver.BuildOptions{})
 	if err != nil {
 		t.Fatal("Build() failed:", err.Error())
 	}
