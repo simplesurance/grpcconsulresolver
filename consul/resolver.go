@@ -30,7 +30,6 @@ type consulResolver struct {
 	healthFilter healthFilter
 	ctx          context.Context
 	cancel       context.CancelFunc
-	backoff      *backoff
 	resolveNow   chan struct{}
 	wgStop       sync.WaitGroup
 }
@@ -74,7 +73,6 @@ func newConsulResolver(
 		service:      consulService,
 		tags:         tags,
 		healthFilter: healthFilter,
-		backoff:      &defBackoff,
 		ctx:          ctx,
 		cancel:       cancel,
 		resolveNow:   make(chan struct{}, 1),
@@ -173,23 +171,11 @@ func (c *consulResolver) watcher() {
 	defer c.wgStop.Done()
 
 	for {
-		var retryCount int
-
 		for {
 			var addrs []resolver.Address
 			var err error
 
 			lastWaitIndex := opts.WaitIndex
-
-			if retryCount > 0 {
-				// if UpdateState returned an error, we retry resolving
-				// + setting UpdateState after a backoff pause.
-				// The pause is applied by doing a consul query
-				// and setting a timeout. This has the
-				// advantage that the pause is also interrupted
-				// if the entry in consul was updated.
-				opts.WaitTime = c.backoff.Backoff(retryCount)
-			}
 
 			queryStartTime := time.Now()
 			addrs, opts.WaitIndex, err = c.query(opts)
@@ -220,9 +206,7 @@ func (c *consulResolver) watcher() {
 			// addresses (addrs is nil), we have to report an empty
 			// set of resolved addresses. It informs the grpc-balancer that resolution is not
 			// in progress anymore and grpc calls can failFast.
-			// If the previous call to UpdateState failed, retryCount is != 0, then this
-			// check is ignored and UpdateState is called again.
-			if addressesEqual(addrs, lastReportedAddrs) && retryCount == 0 {
+			if addressesEqual(addrs, lastReportedAddrs) {
 				// If the consul server responds with
 				// the same data then in the last
 				// query in less then 50ms, we sleep a
@@ -239,15 +223,15 @@ func (c *consulResolver) watcher() {
 				continue
 			}
 
-			lastReportedAddrs = addrs
 			err = c.cc.UpdateState(resolver.State{Addresses: addrs})
-			if err != nil {
-				grpclog.Infof("grpcconsulresolver: updateState failed: %s, retrying after pause", err)
-				retryCount++
-				continue
+			if err != nil && grpclog.V(2) {
+				// UpdateState errors can be ignored in
+				// watch-based resolvers, see
+				// https://github.com/grpc/grpc-go/issues/5048
+				// for a detailed explanation.
+				grpclog.Infof("grpcconsulresolver: ignoring error returned by UpdateState, no other addresses available, error: %s", err)
 			}
-
-			retryCount = 0
+			lastReportedAddrs = addrs
 		}
 
 		select {
