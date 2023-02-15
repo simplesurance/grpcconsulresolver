@@ -28,10 +28,12 @@ package consul
 // Will connect to the consul server localhost:1234 via https and lookup the
 // address of the service with the name "user-service" and the tags "primary"
 // and "eu".
-
+// If an OPT is defined multiple times, only the value of the last occurrence is
+// used.
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 
 	"google.golang.org/grpc/resolver"
@@ -46,56 +48,18 @@ func NewBuilder() resolver.Builder {
 	return &resolverBuilder{}
 }
 
-func endpointParts(endpoint string) (serviceName, opts string, err error) {
-	spl := strings.Split(endpoint, "?")
-	if len(spl) == 1 {
-		return spl[0], "", nil
-	}
-
-	if len(spl) == 2 {
-		return spl[0], spl[1], nil
-	}
-
-	return "", "", errors.New("endpoint contains multiple '?' characters")
-}
-
-func splitOpts(opts string) ([]string, error) {
-	const maxParams = 3
-
-	spl := strings.Split(opts, "&")
-	if len(spl) <= maxParams {
-		return spl, nil
-	}
-
-	return nil, fmt.Errorf("endpoint can only contain <=%d parameters", maxParams)
-}
-
-func splitOptKV(opt string) (key, value string, err error) {
-	spl := strings.Split(opt, "=")
-	if len(spl) == 2 {
-		return spl[0], spl[1], nil
-	}
-
-	return "", "", errors.New("parameter must contain a single '='")
-}
-
-func extractOpts(opts string) (scheme string, tags []string, health healthFilter, err error) {
-	optsSl, err := splitOpts(opts)
-	if err != nil {
-		return "", nil, health, err
-	}
-
-	for _, opt := range optsSl {
-		key, value, err := splitOptKV(opt)
-		if err != nil {
-			return "", nil, healthFilterUndefined, err
+func extractOpts(opts url.Values) (scheme string, tags []string, health healthFilter, err error) {
+	for key, values := range opts {
+		if len(values) == 0 {
+			continue
 		}
+		value := values[len(values)-1]
 
-		switch key = strings.ToLower(key); key {
+		switch strings.ToLower(key) {
 		case "scheme":
 			scheme = strings.ToLower(value)
 			if scheme != "http" && scheme != "https" {
-				return "", nil, healthFilterUndefined, fmt.Errorf("unsupported scheme '%s'", scheme)
+				return "", nil, healthFilterUndefined, fmt.Errorf("unsupported scheme '%s'", value)
 			}
 
 		case "tags":
@@ -119,24 +83,18 @@ func extractOpts(opts string) (scheme string, tags []string, health healthFilter
 	return scheme, tags, health, err
 }
 
-func parseEndpoint(endpoint string) (serviceName, scheme string, tags []string, health healthFilter, err error) {
+func parseEndpoint(url *url.URL) (serviceName, scheme string, tags []string, health healthFilter, err error) {
 	const defScheme = "http"
 	const defHealthFilter = healthFilterOnlyHealthy
 
-	serviceName, opts, err := endpointParts(endpoint)
-	if err != nil {
-		return "", "", nil, health, err
-	}
-
+	// url.Path contains a leading "/", when the URL is in the form
+	// scheme://host/path, remove it
+	serviceName = strings.TrimPrefix(url.Path, "/")
 	if serviceName == "" {
-		return "", "", nil, health, errors.New("endpoint is empty")
+		return "", "", nil, health, errors.New("path is missing in url")
 	}
 
-	if opts == "" {
-		return serviceName, defScheme, nil, defHealthFilter, nil
-	}
-
-	scheme, tags, health, err = extractOpts(opts)
+	scheme, tags, health, err = extractOpts(url.Query())
 	if err != nil {
 		return "", "", nil, health, err
 	}
@@ -153,7 +111,7 @@ func parseEndpoint(endpoint string) (serviceName, scheme string, tags []string, 
 }
 
 func (*resolverBuilder) Build(target resolver.Target, cc resolver.ClientConn, _ resolver.BuildOptions) (resolver.Resolver, error) {
-	serviceName, scheme, tags, health, err := parseEndpoint(target.URL.RequestURI())
+	serviceName, scheme, tags, health, err := parseEndpoint(&target.URL)
 	if err != nil {
 		return nil, err
 	}
