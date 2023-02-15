@@ -57,9 +57,10 @@ func newConsulResolver(
 	token string,
 ) (*consulResolver, error) {
 	cfg := consul.Config{
-		Address: consulAddr,
-		Scheme:  scheme,
-		Token:   token,
+		Address:  consulAddr,
+		Scheme:   scheme,
+		Token:    token,
+		WaitTime: 10 * time.Minute,
 	}
 
 	health, err := consulCreateHealthClientFn(&cfg)
