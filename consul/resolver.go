@@ -193,6 +193,13 @@ func (c *consulResolver) watcher() {
 				break
 			}
 
+			if opts.WaitIndex < lastWaitIndex {
+				grpclog.Infof("grpcconsulresolver: consul responded with a smaller waitIndex (%d) then the previous one (%d), restarting blocking query loop",
+					opts.WaitIndex, lastWaitIndex)
+				opts.WaitIndex = 0
+				continue
+			}
+
 			sort.Slice(addrs, func(i, j int) bool {
 				return addrs[i].Addr < addrs[j].Addr
 			})
