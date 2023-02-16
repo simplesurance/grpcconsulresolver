@@ -140,8 +140,8 @@ func TestParseEndpoint(t *testing.T) {
 				t.Errorf("parseEndpoint() gotHealthFilter = %v, want %v", healthFilter, tt.wantHealthFilter)
 			}
 
-			if !reflect.DeepEqual(tt.wantToken, token) {
-				t.Errorf("parseEndpoint() gotToken = %+v, want %+v", token, tt.wantToken)
+			if token != tt.wantToken {
+				t.Errorf("parseEndpoint() gotToken = %s, want %s", token, tt.wantToken)
 			}
 		})
 	}
