@@ -63,6 +63,10 @@ func newConsulResolver(
 		WaitTime: 10 * time.Minute,
 	}
 
+	if token != "" && scheme == "http" {
+		grpclog.Warning("grpcconsulresolver: the consul api token is sent over an unencrypted connection, scheme=https should be used")
+	}
+
 	health, err := consulCreateHealthClientFn(&cfg)
 	if err != nil {
 		return nil, fmt.Errorf("creating consul client failed. %v", err)
