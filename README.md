@@ -28,7 +28,7 @@ The default for `<consul-server>` is `127.0.0.1:8500`.
 | scheme     | `http\|https`                   | http     | Establish connection to consul via http or https.                                                                                                                |
 | tags       | `<tag>,[,<tag>]...`             |          | Filter service by tags                                                                                                                                           |
 | health     | `healthy\|fallbackToUnhealthy`  | healthy  | `healthy` resolves only to services with a passing health status.<br>`fallbackToUnhealthy` resolves to unhealthy ones if none exist with passing healthy status. |
-| token      | `random_token_string`           |          | Add X-Consul-Token header to requests in order to authenticate against ACL                                                                                       |
+| token      | `string`                        |          | Add X-Consul-Token header to requests in order to authenticate against ACL                                                                                       |
 
 ## Example
 
