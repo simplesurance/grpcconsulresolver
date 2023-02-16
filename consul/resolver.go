@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"sort"
 	"sync"
 	"time"
@@ -114,7 +115,7 @@ func (c *consulResolver) query(opts *consul.QueryOptions) ([]resolver.Address, u
 		}
 
 		result = append(result, resolver.Address{
-			Addr: fmt.Sprintf("%s:%d", addr, e.Service.Port),
+			Addr: net.JoinHostPort(addr, fmt.Sprint(e.Service.Port)),
 		})
 	}
 
