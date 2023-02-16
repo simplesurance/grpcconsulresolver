@@ -23,14 +23,16 @@ func TestParseEndpoint(t *testing.T) {
 		wantTags         []string
 		wantErr          bool
 		wantHealthFilter healthFilter
+		wantToken        string
 	}{
 		{
-			mustParseURL(t, "consul://127.0.01:8500/user-service-rpc?scheme=https&tags=primary,backup&health=healthy"),
+			mustParseURL(t, "consul://127.0.01:8500/user-service-rpc?scheme=https&tags=primary,backup&health=healthy&token=Olj1SIrsGXB_1orYMT71RVCs6FYwGZ_l"),
 			"user-service-rpc",
 			"https",
 			[]string{"primary", "backup"},
 			false,
 			healthFilterOnlyHealthy,
+			"Olj1SIrsGXB_1orYMT71RVCs6FYwGZ_l",
 		},
 
 		{
@@ -40,6 +42,7 @@ func TestParseEndpoint(t *testing.T) {
 			[]string{"pri-mary", "backup"},
 			false,
 			healthFilterFallbackToUnhealthy,
+			"",
 		},
 
 		{
@@ -49,6 +52,7 @@ func TestParseEndpoint(t *testing.T) {
 			nil,
 			false,
 			healthFilterOnlyHealthy,
+			"",
 		},
 
 		{
@@ -58,6 +62,7 @@ func TestParseEndpoint(t *testing.T) {
 			nil,
 			true,
 			healthFilterUndefined,
+			"",
 		},
 
 		{
@@ -67,6 +72,7 @@ func TestParseEndpoint(t *testing.T) {
 			nil,
 			true,
 			healthFilterUndefined,
+			"",
 		},
 
 		{
@@ -76,6 +82,7 @@ func TestParseEndpoint(t *testing.T) {
 			nil,
 			true,
 			healthFilterUndefined,
+			"",
 		},
 
 		{
@@ -85,6 +92,7 @@ func TestParseEndpoint(t *testing.T) {
 			nil,
 			true,
 			healthFilterUndefined,
+			"",
 		},
 
 		{
@@ -94,6 +102,7 @@ func TestParseEndpoint(t *testing.T) {
 			[]string{"secondary"},
 			false,
 			healthFilterFallbackToUnhealthy,
+			"",
 		},
 
 		{
@@ -103,12 +112,13 @@ func TestParseEndpoint(t *testing.T) {
 			nil,
 			true,
 			healthFilterUndefined,
+			"",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.endpoint.String(), func(t *testing.T) {
-			serviceName, scheme, tags, healthFilter, err := parseEndpoint(tt.endpoint)
+			serviceName, scheme, tags, healthFilter, token, err := parseEndpoint(tt.endpoint)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("parseEndpoint() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -128,6 +138,10 @@ func TestParseEndpoint(t *testing.T) {
 
 			if healthFilter != tt.wantHealthFilter {
 				t.Errorf("parseEndpoint() gotHealthFilter = %v, want %v", healthFilter, tt.wantHealthFilter)
+			}
+
+			if !reflect.DeepEqual(tt.wantToken, token) {
+				t.Errorf("parseEndpoint() gotToken = %+v, want %+v", token, tt.wantToken)
 			}
 		})
 	}
