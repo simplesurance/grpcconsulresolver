@@ -48,7 +48,7 @@ func TestParseEndpoint(t *testing.T) {
 		{
 			mustParseURL(t, "consul://localhost/user-service-rpc"),
 			"user-service-rpc",
-			"http",
+			"https",
 			nil,
 			false,
 			healthFilterOnlyHealthy,

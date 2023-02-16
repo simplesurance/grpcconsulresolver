@@ -16,7 +16,7 @@
 // OPT is one of:
 //
 //   - scheme=http|https specifies if the connection to Consul is established
-//     via HTTP or HTTPS. Default: http
+//     via HTTP or HTTPS. Default: https
 //   - tags=<tag>[,<tag>]... only resolves to instances that have the given
 //     tags. Default: empty
 //   - health=healthy|fallbackToUnhealthy filters Services by their health status.
@@ -88,7 +88,7 @@ func extractOpts(opts url.Values) (scheme string, tags []string, health healthFi
 }
 
 func parseEndpoint(url *url.URL) (serviceName, scheme string, tags []string, health healthFilter, token string, err error) {
-	const defScheme = "http"
+	const defScheme = "https"
 	const defHealthFilter = healthFilterOnlyHealthy
 
 	// url.Path contains a leading "/", when the URL is in the form
