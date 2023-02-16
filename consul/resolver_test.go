@@ -249,7 +249,7 @@ func TestResolve(t *testing.T) {
 			return health, nil
 		},
 	)
-	defer cleanup()
+	t.Cleanup(cleanup)
 
 	for _, tt := range tests {
 		t.Run(tt.target.URL.RequestURI(), func(t *testing.T) {
@@ -288,7 +288,7 @@ func TestResolveNewAddressOnlyCalledOnChange(t *testing.T) {
 			return health, nil
 		},
 	)
-	defer cleanup()
+	t.Cleanup(cleanup)
 
 	service := []*consul.ServiceEntry{
 		{
@@ -335,7 +335,7 @@ func TestResolveAddrChange(t *testing.T) {
 			return health, nil
 		},
 	)
-	defer cleanup()
+	t.Cleanup(cleanup)
 
 	services1 := []*consul.ServiceEntry{
 		{
@@ -424,7 +424,7 @@ func TestResolveAddrChangesToUnresolvable(t *testing.T) {
 			return health, nil
 		},
 	)
-	defer cleanup()
+	t.Cleanup(cleanup)
 
 	services1 := []*consul.ServiceEntry{
 		{
@@ -494,7 +494,7 @@ func TestErrorIsReportedOnQueryErrors(t *testing.T) {
 			return health, nil
 		},
 	)
-	defer cleanup()
+	t.Cleanup(cleanup)
 
 	cc := mocks.NewClientConn()
 	b := NewBuilder()
@@ -526,7 +526,7 @@ func TestQueryResultsAreSorted(t *testing.T) {
 			return health, nil
 		},
 	)
-	defer cleanup()
+	t.Cleanup(cleanup)
 
 	health.SetRespEntries([]*consul.ServiceEntry{
 		{
