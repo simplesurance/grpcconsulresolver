@@ -19,11 +19,13 @@ package consul
 //					    fallbackToUnhealthy resolves to
 //					    unhealthy ones if no healthy ones
 //					    are available.
+//  token				  - Consul token used in API requests
 // Defaults:
 //            consul-server:		127.0.0.1:8500
 //            scheme:			http
 //            tags:			nil
-//	      health:			healthy
+//            health:			healthy
+//            token:
 // Example: consul://localhost:1234/user-service?scheme=https&tags=primary,eu
 // Will connect to the consul server localhost:1234 via https and lookup the
 // address of the service with the name "user-service" and the tags "primary"
