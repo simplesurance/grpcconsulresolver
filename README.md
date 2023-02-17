@@ -3,8 +3,19 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/simplesurance/grpcconsulresolver)](https://goreportcard.com/report/github.com/simplesurance/grpcconsulresolver)
 [![GoDoc](https://img.shields.io/badge/godoc-reference-blue.svg)](https://pkg.go.dev/github.com/simplesurance/grpcconsulresolver)
 
-The repository provides a consul resolver for the
-[GRPC-Go Package](https://github.com/grpc/grpc-go).
+The repository provides a [Consul](https://www.consul.io/) service resolver for
+the [grpc-go Package](https://github.com/grpc/grpc-go).
+
+It uses uses [Blocking Queries](https://developer.hashicorp.com/consul/api-docs/features/blocking)
+to watch Service Catalog entries for changes. By default it only resolves to
+services with `passing` check status. It can be configured to fallback resolving
+to unhealthy services if no healthy ones are available.
+
+Configuration is possible via the standard
+[Consul Environment
+Variables](https://developer.hashicorp.com/consul/commands#environment-variables)
+and via the target URI passed to
+[`grpc.Dial`](https://pkg.go.dev/google.golang.org/grpc#Dial).
 
 To register the resolver with the grpc-go run:
 
