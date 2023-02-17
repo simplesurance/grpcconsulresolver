@@ -19,16 +19,23 @@ following format:
 consul://[<consul-server>]/<serviceName>[?<OPT>[&<OPT>]...]
 ```
 
-The default for `<consul-server>` is `127.0.0.1:8500`.
-
 `<OPT>` is one of:
 
-| OPT        | Format                          | Default  | Description                                                                                                                                                      |
-|------------|---------------------------------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| scheme     | `http\|https`                   |          | Establish connection to consul via http or https.                                                                                                                |
-| tags       | `<tag>,[,<tag>]...`             |          | Filter service by tags                                                                                                                                           |
-| health     | `healthy\|fallbackToUnhealthy`  | healthy  | `healthy` resolves only to services with a passing health status.<br>`fallbackToUnhealthy` resolves to unhealthy ones if none exist with passing healthy status. |
-| token      | `string`                        |          | Authenticate Consul API Request with the token.                                                                                                                  |
+| OPT        | Format                          | Default                            | Description                                                                                                                                                      |
+|------------|---------------------------------|------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| scheme     | `http\|https`                   | default from [github.com/hashicorp/consul/api](https://pkg.go.dev/github.com/hashicorp/consul/api)   | Establish connection to consul via http or https.                                                                                                                |
+| tags       | `<tag>,[,<tag>]...`             |                                                                                                      | Filter service by tags                                                                                                                                           |
+| health     | `healthy\|fallbackToUnhealthy`  | healthy                                                                                              | `healthy` resolves only to services with a passing health status.<br>`fallbackToUnhealthy` resolves to unhealthy ones if none exist with passing healthy status. |
+| token      | `string`                        | default from [github.com/hashicorp/consul/api](https://pkg.go.dev/github.com/hashicorp/consul/api)   | Authenticate Consul API Request with the token.                                                                                                                  |
+
+If a setting is not specified in the URI, including `<consul-server>`, the
+settings defined via the standard
+[Consul Environment Variables](https://developer.hashicorp.com/consul/commands#environment-variables)
+are used. If the corresponding environment variable is also not defined, the
+defaults of the Consul Client is used. The supported environment variables and
+their default values might differ depending on the version of the used
+[github.com/hashicorp/consul/api](https://pkg.go.dev/github.com/hashicorp/consul/api)
+package.
 
 ## Example
 
