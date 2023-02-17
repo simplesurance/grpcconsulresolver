@@ -11,8 +11,6 @@
 //
 //	consul://[<consul-server>]/<serviceName>[?<OPT>[&<OPT>]...]
 //
-// When consul-server is not specified 127.0.0.1:8500 is used.
-//
 // OPT is one of:
 //
 //   - scheme=http|https specifies if the connection to Consul is established
@@ -29,7 +27,17 @@
 // If an OPT is defined multiple times, only the value of the last occurrence
 // is used.
 //
+// The resolver can also be configured via the standard [Consul Environment Variables].
+// The supported environment variables and their defaults depend on the version
+// of the [github.com/hashicorp/consul/api] package.
+//
+// If consul-server, scheme or token is not specified in the URL, the settings
+// defined via the [Consul Environment Variables] are used. If they are not
+// defined, the defaults of the [github.com/hashicorp/consul/api.NewClient] are
+// used.
+//
 // [Blocking Consul queries]: https://developer.hashicorp.com/consul/api-docs/features/blocking
+// [Consul Environment Variables]: https://developer.hashicorp.com/consul/commands#environment-variables
 package consul
 
 import (
