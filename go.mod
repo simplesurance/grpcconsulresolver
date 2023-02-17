@@ -2,7 +2,7 @@ module github.com/simplesurance/grpcconsulresolver
 
 require (
 	github.com/hashicorp/consul/api v1.2.0
-	google.golang.org/grpc v1.53.0
+	google.golang.org/grpc v1.42.0
 )
 
 require (
@@ -18,8 +18,6 @@ require (
 	github.com/miekg/dns v1.1.2 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/mapstructure v1.1.2 // indirect
-	github.com/stretchr/testify v1.7.0 // indirect
-	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
 )
 
