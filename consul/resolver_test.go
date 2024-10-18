@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/consul/api"
 	consul "github.com/hashicorp/consul/api"
 	"google.golang.org/grpc/resolver"
 
@@ -97,13 +96,13 @@ func TestResolve(t *testing.T) {
 			target: resolver.Target{URL: url.URL{Path: "user-service"}},
 			consulResponse: []*consul.ServiceEntry{
 				{
-					Service: &api.AgentService{
+					Service: &consul.AgentService{
 						Address: "localhost",
 						Port:    5678,
 					},
 				},
 				{
-					Service: &api.AgentService{
+					Service: &consul.AgentService{
 						Address: "remotehost",
 						Port:    1234,
 					},
@@ -151,46 +150,46 @@ func TestResolve(t *testing.T) {
 			target: resolver.Target{URL: url.URL{Path: "credit-service", RawQuery: "health=fallbackToUnhealthy"}},
 			consulResponse: []*consul.ServiceEntry{
 				{
-					Service: &api.AgentService{
+					Service: &consul.AgentService{
 						Address: "localhost",
 						Port:    5678,
 					},
-					Checks: api.HealthChecks{
+					Checks: consul.HealthChecks{
 						{
-							Status: api.HealthPassing,
+							Status: consul.HealthPassing,
 						},
 					},
 				},
 				{
-					Service: &api.AgentService{
+					Service: &consul.AgentService{
 						Address: "remotehost",
 						Port:    9,
 					},
-					Checks: api.HealthChecks{
+					Checks: consul.HealthChecks{
 						{
-							Status: api.HealthPassing,
+							Status: consul.HealthPassing,
 						},
 					},
 				},
 				{
-					Service: &api.AgentService{
+					Service: &consul.AgentService{
 						Address: "unhealthyHost",
 						Port:    1234,
 					},
-					Checks: api.HealthChecks{
+					Checks: consul.HealthChecks{
 						{
-							Status: api.HealthCritical,
+							Status: consul.HealthCritical,
 						},
 					},
 				},
 				{
-					Service: &api.AgentService{
+					Service: &consul.AgentService{
 						Address: "warnedHost",
 						Port:    1,
 					},
-					Checks: api.HealthChecks{
+					Checks: consul.HealthChecks{
 						{
-							Status: api.HealthWarning,
+							Status: consul.HealthWarning,
 						},
 					},
 				},
@@ -210,24 +209,24 @@ func TestResolve(t *testing.T) {
 			target: resolver.Target{URL: url.URL{Path: "web-service", RawQuery: "health=fallbackToUnhealthy"}},
 			consulResponse: []*consul.ServiceEntry{
 				{
-					Service: &api.AgentService{
+					Service: &consul.AgentService{
 						Address: "localhost",
 						Port:    5678,
 					},
-					Checks: api.HealthChecks{
+					Checks: consul.HealthChecks{
 						{
-							Status: api.HealthCritical,
+							Status: consul.HealthCritical,
 						},
 					},
 				},
 				{
-					Service: &api.AgentService{
+					Service: &consul.AgentService{
 						Address: "remotehost",
 						Port:    1234,
 					},
-					Checks: api.HealthChecks{
+					Checks: consul.HealthChecks{
 						{
-							Status: api.HealthCritical,
+							Status: consul.HealthCritical,
 						},
 					},
 				},
@@ -511,8 +510,8 @@ func TestErrorIsReportedOnQueryErrors(t *testing.T) {
 		time.Sleep(time.Millisecond)
 	}
 
-	if err != queryErr {
-		t.Fatalf("resolver error is %+v, expected %+v", err, queryErr)
+	if !errors.Is(err, queryErr) {
+		t.Fatalf("resolver error is: '%+v', expected: '%+v'", err, queryErr)
 	}
 }
 

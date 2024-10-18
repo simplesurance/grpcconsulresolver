@@ -3,14 +3,17 @@ linters:
   enable:
     - copyloopvar
     - errcheck
+    - errorlint
     - gocritic
-    - goimports
+    - godox
+    - gofumpt
     - goprintffuncname
     - gosimple
     - govet
     - ineffassign
     - misspell
     - nolintlint
+    - nosprintfhostport
     - prealloc
     - revive
     - staticcheck
@@ -21,5 +24,9 @@ linters:
     - usestdlibvars
 
 linters-settings:
-  goimports:
-    local-prefixes: github.com/simplesurance/grpcconsulresolver
+  gofumpt:
+    module-path: github.com/simplesurance/grpcconsulresolver
+    extra-rules: true
+  godox:
+    keywords:
+      - FIXME

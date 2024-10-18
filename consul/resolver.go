@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/consul/api"
 	consul "github.com/hashicorp/consul/api"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/resolver"
@@ -66,7 +65,7 @@ func newConsulResolver(
 
 	health, err := consulCreateHealthClientFn(&cfg)
 	if err != nil {
-		return nil, fmt.Errorf("creating consul client failed. %v", err)
+		return nil, fmt.Errorf("creating consul client failed: %w", err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -133,7 +132,7 @@ func filterPreferOnlyHealthy(entries []*consul.ServiceEntry) []*consul.ServiceEn
 	healthy := make([]*consul.ServiceEntry, 0, len(entries))
 
 	for _, e := range entries {
-		if e.Checks.AggregatedStatus() == api.HealthPassing {
+		if e.Checks.AggregatedStatus() == consul.HealthPassing {
 			healthy = append(healthy, e)
 		}
 	}
