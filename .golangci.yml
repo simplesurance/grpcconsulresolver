@@ -1,12 +1,13 @@
 linters:
   disable-all: true
   enable:
+    - copyloopvar
     - errcheck
-    - exportloopref
     - gocritic
     - goimports
     - goprintffuncname
     - gosimple
+    - govet
     - ineffassign
     - misspell
     - nolintlint
@@ -18,7 +19,6 @@ linters:
     - unconvert
     - unused
     - usestdlibvars
-    - vet
 
 linters-settings:
   goimports:
