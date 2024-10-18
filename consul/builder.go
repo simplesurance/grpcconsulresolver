@@ -1,13 +1,13 @@
-// Package consul implements a GRPC resolver for consul service discovery.
+// Package consul implements a gRPC resolver for consul service discovery.
 // The resolver queries consul for healthy services with a specified name.
 // [Blocking Consul queries] are used to monitor Consul for changes.
 //
-// To register the resolver with the GRPC-Go library run:
+// To register the resolver with the grpc-go library run:
 //
 //	resolver.Register(consul.NewBuilder())
 //
 // Afterwards it can be used by calling [google.golang.org/grpc.Dial] and
-// passing an URL in the following format:
+// passing a URL in the following format:
 //
 //	consul://[<consul-server>]/<serviceName>[?<OPT>[&<OPT>]...]
 //

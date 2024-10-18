@@ -102,8 +102,8 @@ func (c *consulResolver) query(opts *consul.QueryOptions) ([]resolver.Address, u
 
 	result := make([]resolver.Address, 0, len(entries))
 	for _, e := range entries {
-		// when additionals fields are set in addr, addressesEqual()
-		// must be updated to honour them
+		// when additional fields are set in addr, addressesEqual()
+		// must be updated to honor them
 		addr := e.Service.Address
 		if addr == "" {
 			addr = e.Node.Address
@@ -188,9 +188,9 @@ func (c *consulResolver) watcher() {
 				}
 
 				// After ReportError() was called, the grpc
-				// loadbalancer will call ResolveNow()
+				// load balancer will call ResolveNow()
 				// periodically to retry. Therefore we do not
-				// have to retry on our own by e.g.  setting
+				// have to retry on our own by e.g. setting
 				// the timer.
 				c.cc.ReportError(err)
 				break
