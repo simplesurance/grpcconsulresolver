@@ -564,3 +564,49 @@ func TestQueryResultsAreSorted(t *testing.T) {
 
 	r.Close()
 }
+
+func TestRetryOnError(t *testing.T) {
+	cc := mocks.NewClientConn()
+	health := mocks.NewConsulHealthClient()
+	cleanup := replaceCreateHealthClientFn(
+		func(*consul.Config) (consulHealthEndpoint, error) {
+			return health, nil
+		},
+	)
+	t.Cleanup(cleanup)
+
+	health.SetRespError(errors.New("ERROR"))
+
+	r, err := NewBuilder().Build(resolver.Target{URL: url.URL{Path: "test"}}, cc, resolver.BuildOptions{})
+	if err != nil {
+		t.Fatal("Build() failed:", err.Error())
+	}
+
+	t.Cleanup(r.Close)
+
+	for health.ResolveCount() < 3 {
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	t.Logf("%d retries were done", health.ResolveCount())
+	health.SetRespError(nil)
+
+	health.SetRespEntries([]*consul.ServiceEntry{
+		{
+			Service: &consul.AgentService{
+				Address: "227.0.0.1",
+				Port:    1,
+			},
+		},
+		{
+			Service: &consul.AgentService{
+				Address: "127.0.0.1",
+				Port:    1,
+			},
+		},
+	})
+
+	for len(cc.Addrs()) != 2 {
+		time.Sleep(50 * time.Millisecond)
+	}
+}

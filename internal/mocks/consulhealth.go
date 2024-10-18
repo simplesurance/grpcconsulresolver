@@ -7,10 +7,11 @@ import (
 )
 
 type ConsulHealthClient struct {
-	mutex     sync.Mutex
-	entries   []*consul.ServiceEntry
-	queryMeta consul.QueryMeta
-	err       error
+	mutex      sync.Mutex
+	entries    []*consul.ServiceEntry
+	queryMeta  consul.QueryMeta
+	err        error
+	resolveCnt int
 }
 
 func NewConsulHealthClient() *ConsulHealthClient {
@@ -46,10 +47,17 @@ func (c *ConsulHealthClient) SetRespError(err error) {
 func (c *ConsulHealthClient) ServiceMultipleTags(_ string, _ []string, _ bool, q *consul.QueryOptions) ([]*consul.ServiceEntry, *consul.QueryMeta, error) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
+	c.resolveCnt++
 
 	if q.Context().Err() != nil {
 		return nil, nil, q.Context().Err()
 	}
 
 	return c.entries, &c.queryMeta, c.err
+}
+
+func (c *ConsulHealthClient) ResolveCount() int {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	return c.resolveCnt
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -25,15 +26,16 @@ const (
 var logger = grpclog.Component("grpcconsulresolver")
 
 type consulResolver struct {
-	cc           resolver.ClientConn
-	consulHealth consulHealthEndpoint
-	service      string
-	tags         []string
-	healthFilter healthFilter
-	ctx          context.Context
-	cancel       context.CancelFunc
-	resolveNow   chan struct{}
-	wgStop       sync.WaitGroup
+	cc             resolver.ClientConn
+	consulHealth   consulHealthEndpoint
+	service        string
+	tags           []string
+	healthFilter   healthFilter
+	backoffCounter *backoff
+	ctx            context.Context
+	cancel         context.CancelFunc
+	resolveNow     chan struct{}
+	wgStop         sync.WaitGroup
 }
 
 type consulHealthEndpoint interface {
@@ -73,14 +75,15 @@ func newConsulResolver(
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &consulResolver{
-		cc:           cc,
-		consulHealth: health,
-		service:      consulService,
-		tags:         tags,
-		healthFilter: healthFilter,
-		ctx:          ctx,
-		cancel:       cancel,
-		resolveNow:   make(chan struct{}, 1),
+		cc:             cc,
+		consulHealth:   health,
+		service:        consulService,
+		tags:           tags,
+		healthFilter:   healthFilter,
+		backoffCounter: defaultBackoff(),
+		ctx:            ctx,
+		cancel:         cancel,
+		resolveNow:     make(chan struct{}, 1),
 	}, nil
 }
 
@@ -90,11 +93,20 @@ func (c *consulResolver) start() {
 }
 
 func (c *consulResolver) query(opts *consul.QueryOptions) ([]resolver.Address, uint64, error) {
+	if logger.V(2) {
+		var tagsDescr, healthyDescr string
+		if len(c.tags) > 0 {
+			tagsDescr = "with tags: " + strings.Join(c.tags, ", ")
+		}
+		if c.healthFilter == healthFilterOnlyHealthy {
+			healthyDescr = "healthy "
+		}
+
+		logger.Infof("querying consul for "+healthyDescr+"addresses of service '%s'"+tagsDescr, c.service)
+	}
+
 	entries, meta, err := c.consulHealth.ServiceMultipleTags(c.service, c.tags, c.healthFilter == healthFilterOnlyHealthy, opts)
 	if err != nil {
-		logger.Infof("resolving service name '%s' via consul failed: %v\n",
-			c.service, err)
-
 		return nil, 0, err
 	}
 
@@ -170,6 +182,8 @@ func addressesEqual(a, b []resolver.Address) bool {
 
 func (c *consulResolver) watcher() {
 	var lastReportedAddrs []resolver.Address
+	var retryTimer *time.Timer
+	var retryCnt int
 
 	opts := (&consul.QueryOptions{}).WithContext(c.ctx)
 
@@ -181,17 +195,31 @@ func (c *consulResolver) watcher() {
 			var err error
 
 			lastWaitIndex := opts.WaitIndex
-
 			queryStartTime := time.Now()
+
+			if retryTimer != nil {
+				retryTimer.Stop()
+			}
+
 			addrs, opts.WaitIndex, err = c.query(opts)
 			if err != nil {
 				if errors.Is(err, context.Canceled) {
 					return
 				}
 
+				retryIn := c.backoffCounter.Backoff(retryCnt)
+				logger.Infof("resolving service name '%s' via consul failed, retrying in %s: %s",
+					c.service, retryIn, err)
+
+				retryTimer = time.AfterFunc(c.backoffCounter.Backoff(retryCnt), func() {
+					c.ResolveNow(resolver.ResolveNowOptions{})
+				})
+				retryCnt++
+
 				c.cc.ReportError(err)
 				break
 			}
+			retryCnt = 0
 
 			if opts.WaitIndex < lastWaitIndex {
 				logger.Infof("consul responded with a smaller waitIndex (%d) then the previous one (%d), restarting blocking query loop",
@@ -211,13 +239,14 @@ func (c *consulResolver) watcher() {
 			// If the service does not exist, an empty addrs slice
 			// is returned. If we never reported any resolved
 			// addresses (addrs is nil), we have to report an empty
-			// set of resolved addresses. It informs the grpc-balancer that resolution is not
-			// in progress anymore and grpc calls can failFast.
+			// set of resolved addresses. It informs the
+			// grpc-balancer that resolution is not in progress
+			// anymore and grpc calls can failFast.
 			if addressesEqual(addrs, lastReportedAddrs) {
 				// If the consul server responds with
-				// the same data then in the last
-				// query in less then 50ms, we sleep a
-				// bit to prevent querying in a tight loop
+				// the same data than in the last
+				// query in less than 50ms, sleep a
+				// bit to prevent querying in a tight loop.
 				// This should only happen if the consul server
 				// is buggy but better be safe. :-)
 				if lastWaitIndex == opts.WaitIndex &&
@@ -243,6 +272,10 @@ func (c *consulResolver) watcher() {
 
 		select {
 		case <-c.ctx.Done():
+			if retryTimer != nil {
+				retryTimer.Stop()
+			}
+
 			return
 
 		case <-c.resolveNow:
