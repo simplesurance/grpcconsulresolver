@@ -245,7 +245,7 @@ func TestResolve(t *testing.T) {
 
 	health := mocks.NewConsulHealthClient()
 	cleanup := replaceCreateHealthClientFn(
-		func(cfg *consul.Config) (consulHealthEndpoint, error) {
+		func(*consul.Config) (consulHealthEndpoint, error) {
 			return health, nil
 		},
 	)
@@ -284,7 +284,7 @@ func TestResolve(t *testing.T) {
 func TestResolveNewAddressOnlyCalledOnChange(t *testing.T) {
 	health := mocks.NewConsulHealthClient()
 	cleanup := replaceCreateHealthClientFn(
-		func(cfg *consul.Config) (consulHealthEndpoint, error) {
+		func(*consul.Config) (consulHealthEndpoint, error) {
 			return health, nil
 		},
 	)
@@ -331,7 +331,7 @@ func TestResolveNewAddressOnlyCalledOnChange(t *testing.T) {
 func TestResolveAddrChange(t *testing.T) {
 	health := mocks.NewConsulHealthClient()
 	cleanup := replaceCreateHealthClientFn(
-		func(cfg *consul.Config) (consulHealthEndpoint, error) {
+		func(*consul.Config) (consulHealthEndpoint, error) {
 			return health, nil
 		},
 	)
@@ -420,7 +420,7 @@ func TestResolveAddrChange(t *testing.T) {
 func TestResolveAddrChangesToUnresolvable(t *testing.T) {
 	health := mocks.NewConsulHealthClient()
 	cleanup := replaceCreateHealthClientFn(
-		func(cfg *consul.Config) (consulHealthEndpoint, error) {
+		func(*consul.Config) (consulHealthEndpoint, error) {
 			return health, nil
 		},
 	)
@@ -490,7 +490,7 @@ func TestErrorIsReportedOnQueryErrors(t *testing.T) {
 	health.SetRespError(queryErr)
 
 	cleanup := replaceCreateHealthClientFn(
-		func(cfg *consul.Config) (consulHealthEndpoint, error) {
+		func(*consul.Config) (consulHealthEndpoint, error) {
 			return health, nil
 		},
 	)
@@ -509,7 +509,6 @@ func TestErrorIsReportedOnQueryErrors(t *testing.T) {
 
 	for ; err == nil; err = cc.LastReportedError() {
 		time.Sleep(time.Millisecond)
-
 	}
 
 	if err != queryErr {
@@ -522,7 +521,7 @@ func TestQueryResultsAreSorted(t *testing.T) {
 	newAddressCallCnt := cc.UpdateStateCallCnt()
 	health := mocks.NewConsulHealthClient()
 	cleanup := replaceCreateHealthClientFn(
-		func(cfg *consul.Config) (consulHealthEndpoint, error) {
+		func(*consul.Config) (consulHealthEndpoint, error) {
 			return health, nil
 		},
 	)

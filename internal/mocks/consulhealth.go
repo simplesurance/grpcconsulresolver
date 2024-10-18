@@ -43,7 +43,7 @@ func (c *ConsulHealthClient) SetRespError(err error) {
 	c.err = err
 }
 
-func (c *ConsulHealthClient) ServiceMultipleTags(service string, tags []string, passingOnly bool, q *consul.QueryOptions) ([]*consul.ServiceEntry, *consul.QueryMeta, error) {
+func (c *ConsulHealthClient) ServiceMultipleTags(_ string, _ []string, _ bool, q *consul.QueryOptions) ([]*consul.ServiceEntry, *consul.QueryMeta, error) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
