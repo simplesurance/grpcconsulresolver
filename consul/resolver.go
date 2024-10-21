@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net"
 	"slices"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -260,8 +259,8 @@ func (c *consulResolver) watcher() {
 // previous reported addresses or an error has been reported before.
 // It returns true if [c.cc.UpdateState] has been called.
 func (c *consulResolver) reportAddress(addrs []resolver.Address) bool {
-	sort.Slice(addrs, func(i, j int) bool {
-		return addrs[i].Addr < addrs[j].Addr
+	slices.SortFunc(addrs, func(e, e1 resolver.Address) int {
+		return strings.Compare(e.Addr, e1.Addr)
 	})
 
 	if c.lastReporterState.err == nil && addressesEqual(addrs, c.lastReporterState.addresses) {
