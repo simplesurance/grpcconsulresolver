@@ -144,7 +144,7 @@ func (c *consulResolver) query(opts *consul.QueryOptions) ([]resolver.Address, u
 		logger.Infof("service '%s' resolved to '%+v'", c.service, result)
 	}
 
-	return result, meta.LastIndex, nil
+	return slices.Clip(result), meta.LastIndex, nil
 }
 
 // filterPreferOnlyHealthy if entries contains services with passing health
