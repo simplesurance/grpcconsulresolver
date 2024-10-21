@@ -9,10 +9,11 @@ import (
 )
 
 type ClientConn struct {
-	mutex             sync.Mutex
-	addrs             []resolver.Address
-	newAddressCallCnt int
-	lastReportedError error
+	mutex              sync.Mutex
+	addrs              []resolver.Address
+	newAddressCallCnt  int
+	reportErrorCallcnt int
+	lastReportedError  error
 }
 
 func NewClientConn() *ClientConn {
@@ -27,6 +28,7 @@ func (t *ClientConn) ReportError(err error) {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 
+	t.reportErrorCallcnt++
 	t.lastReportedError = err
 }
 
@@ -35,6 +37,13 @@ func (t *ClientConn) LastReportedError() error {
 	defer t.mutex.Unlock()
 
 	return t.lastReportedError
+}
+
+func (t *ClientConn) ReportErrorCallCnt() int {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+
+	return t.reportErrorCallcnt
 }
 
 func (t *ClientConn) UpdateState(state resolver.State) error {

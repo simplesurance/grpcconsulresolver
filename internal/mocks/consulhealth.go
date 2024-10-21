@@ -7,11 +7,12 @@ import (
 )
 
 type ConsulHealthClient struct {
-	mutex      sync.Mutex
-	entries    []*consul.ServiceEntry
-	queryMeta  consul.QueryMeta
-	err        error
-	resolveCnt int
+	Mutex                 sync.Mutex
+	Entries               []*consul.ServiceEntry
+	queryMeta             consul.QueryMeta
+	ResolveCnt            int
+	Err                   error
+	ServiceMultipleTagsFn func(*ConsulHealthClient, string, []string, bool, *consul.QueryOptions) ([]*consul.ServiceEntry, *consul.QueryMeta, error)
 }
 
 func NewConsulHealthClient() *ConsulHealthClient {
@@ -31,33 +32,37 @@ func (c *ConsulHealthClient) SetRespServiceEntries(s []*consul.AgentService) {
 }
 
 func (c *ConsulHealthClient) SetRespEntries(entries []*consul.ServiceEntry) {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
+	c.Mutex.Lock()
+	defer c.Mutex.Unlock()
 
-	c.entries = entries
+	c.Entries = entries
 }
 
 func (c *ConsulHealthClient) SetRespError(err error) {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
+	c.Mutex.Lock()
+	defer c.Mutex.Unlock()
 
-	c.err = err
+	c.Err = err
 }
 
 func (c *ConsulHealthClient) ServiceMultipleTags(_ string, _ []string, _ bool, q *consul.QueryOptions) ([]*consul.ServiceEntry, *consul.QueryMeta, error) {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-	c.resolveCnt++
+	if c.ServiceMultipleTagsFn != nil {
+		return c.ServiceMultipleTagsFn(c, "", nil, false, q)
+	}
+
+	c.Mutex.Lock()
+	defer c.Mutex.Unlock()
+	c.ResolveCnt++
 
 	if q.Context().Err() != nil {
 		return nil, nil, q.Context().Err()
 	}
 
-	return c.entries, &c.queryMeta, c.err
+	return c.Entries, &c.queryMeta, c.Err
 }
 
 func (c *ConsulHealthClient) ResolveCount() int {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-	return c.resolveCnt
+	c.Mutex.Lock()
+	defer c.Mutex.Unlock()
+	return c.ResolveCnt
 }

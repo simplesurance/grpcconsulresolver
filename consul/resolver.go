@@ -283,7 +283,11 @@ func (c *consulResolver) reportAddress(addrs []resolver.Address) bool {
 }
 
 func (c *consulResolver) reportError(err error) bool {
-	if c.lastReporterState.err == err { //nolint: errorlint
+	// We compare the string representation of the errors because it is
+	// simple and works. http.Client.Do() returns [*url.Error]s which are not
+	// equal when compared with "==", neither [url.Error.Err] does because
+	// it e.g. can contain a *net.OpError.
+	if c.lastReporterState.err != nil && c.lastReporterState.err.Error() == err.Error() {
 		return false
 	}
 

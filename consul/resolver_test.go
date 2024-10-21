@@ -3,6 +3,7 @@ package consul
 import (
 	"errors"
 	"fmt"
+	"net"
 	"net/url"
 	"testing"
 	"time"
@@ -608,5 +609,61 @@ func TestRetryOnError(t *testing.T) {
 
 	for len(cc.Addrs()) != 2 {
 		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+func TestErrorsOnlyReportedOnce(t *testing.T) {
+	var qe1 error = &url.Error{
+		Op:  "test",
+		Err: &net.OpError{Op: "none"},
+	}
+	var qe2 error = &url.Error{
+		Op:  "test",
+		Err: &net.OpError{Op: "none"},
+	}
+
+	health := mocks.NewConsulHealthClient()
+	health.SetRespError(qe1)
+	health.ServiceMultipleTagsFn = func(c *mocks.ConsulHealthClient, _ string, _ []string, _ bool, _ *consul.QueryOptions) ([]*consul.ServiceEntry, *consul.QueryMeta, error) {
+		e1 := c.Err
+		health.SetRespError(qe2)
+
+		c.Mutex.Lock()
+		defer c.Mutex.Unlock()
+
+		c.ResolveCnt++
+
+		return nil, nil, e1
+	}
+
+	cleanup := replaceCreateHealthClientFn(
+		func(*consul.Config) (consulHealthEndpoint, error) {
+			return health, nil
+		},
+	)
+	t.Cleanup(cleanup)
+
+	cc := mocks.NewClientConn()
+	b := NewBuilder()
+	target := resolver.Target{URL: url.URL{Path: "user-service"}}
+
+	r, err := b.Build(target, cc, resolver.BuildOptions{})
+	if err != nil {
+		t.Fatal("Build() failed:", err.Error())
+	}
+
+	r.ResolveNow(resolver.ResolveNowOptions{})
+	for health.ResolveCount() < 1 {
+		time.Sleep(time.Millisecond)
+	}
+
+	r.ResolveNow(resolver.ResolveNowOptions{})
+
+	for health.ResolveCount() < 2 {
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	if cc.ReportErrorCallCnt() != 1 {
+		t.Errorf("ReportError was called %d times, expecting 1 call", cc.ReportErrorCallCnt())
 	}
 }
