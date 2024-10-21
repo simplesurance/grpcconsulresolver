@@ -22,6 +22,8 @@ const (
 	healthFilterFallbackToUnhealthy
 )
 
+var logger = grpclog.Component("grpcconsulresolver")
+
 type consulResolver struct {
 	cc           resolver.ClientConn
 	consulHealth consulHealthEndpoint
@@ -90,7 +92,7 @@ func (c *consulResolver) start() {
 func (c *consulResolver) query(opts *consul.QueryOptions) ([]resolver.Address, uint64, error) {
 	entries, meta, err := c.consulHealth.ServiceMultipleTags(c.service, c.tags, c.healthFilter == healthFilterOnlyHealthy, opts)
 	if err != nil {
-		grpclog.Infof("grpcconsulresolver: resolving service name '%s' via consul failed: %v\n",
+		logger.Infof("resolving service name '%s' via consul failed: %v\n",
 			c.service, err)
 
 		return nil, 0, err
@@ -108,8 +110,8 @@ func (c *consulResolver) query(opts *consul.QueryOptions) ([]resolver.Address, u
 		if addr == "" {
 			addr = e.Node.Address
 
-			if grpclog.V(2) {
-				grpclog.Infof("grpcconsulresolver: service '%s' has no ServiceAddress, using agent address '%+v'", e.Service.ID, addr)
+			if logger.V(2) {
+				logger.Infof("service '%s' has no ServiceAddress, using agent address '%+v'", e.Service.ID, addr)
 			}
 		}
 
@@ -118,8 +120,8 @@ func (c *consulResolver) query(opts *consul.QueryOptions) ([]resolver.Address, u
 		})
 	}
 
-	if grpclog.V(1) {
-		grpclog.Infof("grpcconsulresolver: service '%s' resolved to '%+v'", c.service, result)
+	if logger.V(1) {
+		logger.Infof("service '%s' resolved to '%+v'", c.service, result)
 	}
 
 	return result, meta.LastIndex, nil
@@ -187,17 +189,12 @@ func (c *consulResolver) watcher() {
 					return
 				}
 
-				// After ReportError() was called, the grpc
-				// load balancer will call ResolveNow()
-				// periodically to retry. Therefore we do not
-				// have to retry on our own by e.g. setting
-				// the timer.
 				c.cc.ReportError(err)
 				break
 			}
 
 			if opts.WaitIndex < lastWaitIndex {
-				grpclog.Infof("grpcconsulresolver: consul responded with a smaller waitIndex (%d) then the previous one (%d), restarting blocking query loop",
+				logger.Infof("consul responded with a smaller waitIndex (%d) then the previous one (%d), restarting blocking query loop",
 					opts.WaitIndex, lastWaitIndex)
 				opts.WaitIndex = 0
 				continue
@@ -225,7 +222,7 @@ func (c *consulResolver) watcher() {
 				// is buggy but better be safe. :-)
 				if lastWaitIndex == opts.WaitIndex &&
 					time.Since(queryStartTime) < 50*time.Millisecond {
-					grpclog.Warningf("grpcconsulresolver: consul responded too fast with same data and waitIndex (%d) then in previous query, delaying next query",
+					logger.Warningf("consul responded too fast with same data and waitIndex (%d) then in previous query, delaying next query",
 						opts.WaitIndex)
 					time.Sleep(50 * time.Millisecond)
 				}
@@ -239,7 +236,7 @@ func (c *consulResolver) watcher() {
 				// watch-based resolvers, see
 				// https://github.com/grpc/grpc-go/issues/5048
 				// for a detailed explanation.
-				grpclog.Infof("grpcconsulresolver: ignoring error returned by UpdateState, no other addresses available, error: %s", err)
+				logger.Infof("ignoring error returned by UpdateState, no other addresses available, error: %s", err)
 			}
 			lastReportedAddrs = addrs
 		}
@@ -256,7 +253,6 @@ func (c *consulResolver) watcher() {
 func (c *consulResolver) ResolveNow(resolver.ResolveNowOptions) {
 	select {
 	case c.resolveNow <- struct{}{}:
-
 	default:
 	}
 }
