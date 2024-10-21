@@ -231,7 +231,7 @@ func (c *consulResolver) watcher() {
 			}
 
 			err = c.cc.UpdateState(resolver.State{Addresses: addrs})
-			if err != nil && grpclog.V(2) {
+			if err != nil && logger.V(2) {
 				// UpdateState errors can be ignored in
 				// watch-based resolvers, see
 				// https://github.com/grpc/grpc-go/issues/5048
