@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -166,25 +167,13 @@ func filterPreferOnlyHealthy(entries []*consul.ServiceEntry) []*consul.ServiceEn
 }
 
 func addressesEqual(a, b []resolver.Address) bool {
-	if a == nil && b != nil {
+	if (a == nil && b != nil) || (a != nil && b == nil) {
 		return false
 	}
 
-	if a != nil && b == nil {
-		return false
-	}
-
-	if len(a) != len(b) {
-		return false
-	}
-
-	for i := range a {
-		if a[i].Addr != b[i].Addr {
-			return false
-		}
-	}
-
-	return true
+	return slices.CompareFunc(a, b, func(e, e1 resolver.Address) int {
+		return strings.Compare(e.Addr, e1.Addr)
+	}) == 0
 }
 
 func (c *consulResolver) watcher() {
